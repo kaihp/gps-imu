@@ -105,6 +105,8 @@
 #define MPU_ZA_OFFSET_H        (0x7D)
 #define MPU_ZA_OFFSET_L        (0x7E)
 
+#define MPU_WHOAMI_MAGIC       (0x73)
+
 /* AK8962 Magnetometer Register Map  (cf RM-MPU-9250A-00, pg 47) */
 #define MAG_WIA    (0x00)
 #define MAG_INFO   (0x01)

@@ -95,6 +95,17 @@ float to_float(int res, u16_t raw)
 
 void mpu9250_init(void)
 {
+  int res;
+  res = i2c_rd8(mpu,MPU_WHO_AM_I);
+  if(res<0) {
+    puts("Unable to talk to MPU9250 sensor.");
+    exit(-1);
+  }
+  if(res!=MPU_WHOAMI_MAGIC) {
+    puts("Unable to recognize MPU9250 sensor.");
+    exit(-1);
+  }
+    
   i2c_wr8(mpu,MPU_ACCEL_CONFIG,2<<3); /* ACCEL_FS_SEL=0b10 (+/-8g) */
   i2c_wr8(mpu,MPU_GYRO_CONFIG,2<<3);  /* GYRO_FS_SEL=0b10  (+/-1000dps) */
 
@@ -105,11 +116,11 @@ void bmp280_init(void)
 {
   int res;
   res = i2c_rd8(bmp,BMP_CHIP_ID);
-  if(res==-1) {
+  if(res<0) {
     puts("Unable to talk to BMP280 sensor.");
     exit(-1);
   }
-  if(res!=0x58) {
+  if(res!=BMP_CHIPID_MAGIC) {
     puts("Unable to recognize BMP280 sensor.");
     exit(-1);
   }

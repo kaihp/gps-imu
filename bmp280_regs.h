@@ -41,5 +41,6 @@
 #define BMP_TEMP_LSB       (0xFB)
 #define BMP_TEMP_XLSB      (0xFC)
 
+#define BMP_CHIPID_MAGIC   (0x58)
 
 #endif
