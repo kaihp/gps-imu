@@ -149,11 +149,32 @@ int i2c_rd16(int fd, int addr)
 
 int i2c_rd_blk(int fd, int addr, int length, u8_t *data)
 {
-  data[0] = (u8_t) length;
-  if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) data)) {
-    return data[0];
+#define MAXBLK 32
+  u8_t buf[1+MAXBLK];
+  int full, partial;
+  int nbytes=0;
+  /* Chop xfer into blocks of MAXBLK bytes */
+  full = length/MAXBLK;
+  partial = length & (MAXBLK-1);
+  while(full--) {
+    buf[0] = MAXBLK;
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      nbytes+=buf[0];
+      memcpy(data[1+nbytes],buf[1],MAXBLK); /* dst,src,size_t */
+    } else {
+      return -1;
+    }
   }
-  return -1;
+  if(partial!=0) {
+    buf[0] = partial;
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      nbytes+=buf[0];
+      memcpy(data[1+nbytes],buf[1],partial); /* dst,src,size_t */
+    } else {
+      return -1;
+    }
+  }
+  return nbytes;
 }
 
 int i2c_wr8(int fd, int addr, u8_t data)
@@ -176,11 +197,32 @@ int i2c_wr16(int fd, int addr, u16_t data)
 
 int i2c_wr_blk(int fd, int addr, int length, u8_t *data)
 {
-  data[0] = (u8_t) length;
-  if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) data)) {
-    return data[0];
+  u8_t buf[1+MAXBLK];
+  int full, partial;
+  int nbytes=1;
+  /* Chop xfer into blocks of MAXBLK bytes */
+  full = length/MAXBLK;
+  partial = length & (MAXBLK-1);
+  while(full--) {
+    buf[0] = MAXBLK;
+    memcpy(&buf[1],&data[nbytes],MAXBLK); /* dst,src,size_t */
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      memcpy(&data[nbytes],&buf[1],MAXBLK); /* dst,src,size_t */
+      nbytes+=MAXBLK;
+    } else {
+      return -1;
+    }
   }
-  return -1;
+  if(partial!=0) {
+    buf[0] = partial;
+    memcpy(&buf[1],&data[nbytes],partial); /* dst,src,size_t */
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      nbytes+=partial;
+    } else {
+      return -1;
+    }
+  }
+  return --nbytes;
 }
 
 static inline u16_t byteswap(u16_t data)
