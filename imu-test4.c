@@ -4,7 +4,6 @@
 #include <math.h>
 
 #include "i2c.h"
-
 #include "mpu9250_regs.h"
 #include "bmp280_regs.h"
 
@@ -86,7 +85,7 @@ float to_float(int res, u16_t raw)
 #define GRAV_RES (8)
 #define GYRO_RES (1000)
 
-void mpu9250_init(void)
+void mpu9250_init(int mpu)
 {
   int res;
   res = i2c_rd8(mpu,MPU_WHO_AM_I);
@@ -105,7 +104,7 @@ void mpu9250_init(void)
   return;
 }
 
-void bmp280_init(void)
+void bmp280_init(int bmp)
 {
   int res;
   res = i2c_rd8(bmp,BMP_CHIP_ID);
@@ -272,8 +271,8 @@ int main (void)
     exit(-1);
   }
 
-  mpu9250_init();
-  bmp280_init();
+  mpu9250_init(mpu);
+  bmp280_init(bmp);
   puts("Done init");
 #if defined(BMP)
 #if 0
