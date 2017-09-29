@@ -15,6 +15,7 @@ int i2c_init_dev(int devId);
 int i2c_rd8(int fd, int addr);
 int i2c_rd16(int fd, int addr);
 int i2c_rd_blk(int fd, int addr, int length, uint8_t *data);
+int i2c_wr(int fd, int cmd);
 int i2c_wr8(int fd, int addr, uint8_t data);
 int i2c_wr16(int fd, int addr, uint16_t data);
 int i2c_wr_blk(int fd, int addr, int length, uint8_t *data);
