@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "i2c.h"
 #include "ssd1306.h"
@@ -21,19 +22,15 @@
 
 #include "font_8x8.h"
 
-uint8_t img8[2][8] = {
-  {0x7F, 0x01, 0x01, 0x1F, 0x01, 0x01, 0x01, 0x00},
-  {0x7F, 0x09, 0x09, 0x09, 0x09, 0x01, 0x01, 0x00}};
+uint8_t *gfxbuf = NULL;
 
-uint8_t img16[2][32] = {
-  {0x3F, 0xFF, 0x3F, 0xFF, 0x3F, 0xFF, 0x00, 0x07,
-   0x00, 0x07, 0x00, 0x07, 0x00, 0xFF, 0x00, 0xFF,
-   0x00, 0xFF, 0x00, 0x07, 0x00, 0x07, 0x00, 0x07,
-   0x00, 0x07, 0x00, 0x07, 0x00, 0x07, 0x00, 0x00},
-  {0x7F, 0xFF, 0x7F, 0xFF, 0x7F, 0xFF, 0x01, 0xC7,
-   0x01, 0xC7, 0x01, 0xC7, 0x01, 0xC7, 0x01, 0xC7,
-   0x00, 0x07, 0x00, 0x07, 0x00, 0x07, 0x00, 0x07,
-   0x00, 0x07, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00}};
+uint8_t img8[8] = {0x7F, 0x09, 0x09, 0x9, 0x09, 0x01, 0x01, 0x00};
+
+uint8_t img16[32] = {
+  0xFF, 0xFF, 0xFF, 0xC7, 0xC7, 0xC7, 0xC7, 0xC7, /* Upper 8 pixel rows */
+  0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x00, 0x00,
+  0x7F, 0x7F, 0x7F, 0x01, 0x01, 0x01, 0x01, 0x01, /* Lower 8 pixel rows */
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 void ssd130x_power(int fd, int on)
 {
@@ -109,7 +106,7 @@ void ssd130x_init(int fd)
  * 18) Set Display ON (0xAF)
  * 19) /Clear Screen/
  */
-#if 1
+#if 0
   /* Code from UG-2864HSWEG01+user+guide.pdf, pg 19 */
   ssd_cmd1(fd, SSD_DISP_SLEEP);        /* 0xAE: DISP_ENTIRE_OFF */
   ssd_cmd1(fd, SSD_COL_PAGE_LO);       /* 0x00: SET_COL_PAGE_LO = 0 */
@@ -130,10 +127,45 @@ void ssd130x_init(int fd)
   ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
   ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 0xAF: DISP = ON */
 #endif
-  /* Clear GDDRAM memory */
-  ssd_disp_init(fd, 1);
-
 #if 1
+  /* Code from UG-2864HSWEG01+user+guide.pdf, pg 19 */
+  ssd_cmd1(fd, SSD_DISP_SLEEP);        /* 0xAE: DISP_ENTIRE_OFF */
+  ssd_cmd1(fd, SSD_COL_PAGE_LO);       /* 0x00: SET_COL_PAGE_LO = 0 */
+  ssd_cmd1(fd, SSD_COL_PAGE_HI);       /* 0x10: SET_COL_PAGE_HI = 0 */
+  ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /* 0x20: ADDR_MODE = 0h */
+  ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /* 0x40: DISP_STARTLINE = 0 */
+  ssd_cmd2(fd, SSD_CONTRAST, 0xCF);    /* 0x81: CONTRAST = 0xCF */
+  ssd_cmd1(fd, SSD_SEG_REMAP127);      /* 0xA1: SEG_REMAP = Y */
+  ssd_cmd1(fd, SSD_COM_SCAN_NORM);     /* 0xC8: COM_SCAN = Normal (0..7) */
+  ssd_cmd1(fd, SSD_DISP_NORM);         /* 0xA6: DISP_NORMAL */
+  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /* 0xA8: MUX_RATIO = 0x1F (x32 display) */
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /* 0xD3: DISP_OFFSET = 0 */
+  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /* 0xD5: DCLK_DIV = 0x80 */
+  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 0xD9: PRECHARGE = 0xF1 */
+  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x02);  /* 0xDA: COM_HW PINS = 0x02 */
+  ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 0xDB: VCOMH LEVEL = 0x40 */
+  ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /* 0x8D: CHARGEPUMP = 0x14 */
+  ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
+  ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 0xAF: DISP = ON */
+#endif
+
+  /* If not allocated, allocate gfx buffer; else: zero contents */
+  if(NULL==gfxbuf) {
+    gfxbuf = calloc((size_t) SSD_LCD_WIDTH*SSD_LCD_HEIGHT/4, sizeof(uint8_t));
+    if(NULL==gfxbuf) {
+      puts("Unable to allocate memory for graphics buffer");
+      exit(-1);
+    }
+  } else {
+    memset(gfxbuf, 0, (size_t) SSD_LCD_WIDTH*SSD_LCD_HEIGHT/4);
+  }
+
+  /* Clear GDDRAM memory */
+  ssd_disp_init();
+
+  ssd_disp_update(fd);
+
+#if 0
   /* Horizontal scroll */
   ssd_cmd1(fd, SSD_SCROLL_OFF);
   uint8_t hscroll[] = {SSD_SCROLL_H_R, 0, 0, 0, 3, 0, 0xFF};
@@ -195,7 +227,15 @@ void ssd_disp_awake(int fd, int on)
   }
 }
 
-void ssd_disp_init(int fd, int c)
+void ssd_disp_update(int fd)
+{
+  int i;
+  int len=I2C_BLK_MAX;
+  for(i=0;i<SSD_LCD_WIDTH*SSD_LCD_HEIGHT/4;i+=len) {
+    ssd_dat_blk(fd, len, (uint8_t *) &gfxbuf[i]);
+  }
+}
+void ssd_disp_init()
 {
   static uint8_t blank[SSD_LCD_HEIGHT*SSD_LCD_WIDTH/8] = {
     /* Row 0-7, col 0-127, bit0 = topmost row, bit7 = lowest row */
@@ -280,30 +320,23 @@ void ssd_disp_init(int fd, int c)
   ssd_cmd1(fd, SSD_COL_PAGE_HI);
 #endif
 #if 0
-  for(i=0;i<SSD_LCD_WIDTH*SSD_LCD_HEIGHT/8;i+=len) {
-    ssd_dat_blk(fd, len, (uint8_t *) &blank[i]);
-  }
-#endif
-#if 0
-  for(i=0;i<SSD_LCD_WIDTH*SSD_LCD_HEIGHT/8;i+=len) {
-    ssd_dat_blk(fd, len, (uint8_t *) &blank[i]);
-  }
+  memcpy(gfxbuf,&blank,sizeof(blank)); /* dst, src, sz */
+  memcpy(gfxbuf+sizeof(blank),&blank,sizeof(blank)); /* dst, src, sz */
 #endif
 #if 1
-  for(i=0;i<SSD_LCD_WIDTH*SSD_LCD_HEIGHT/8;i+=len) {
-    ssd_dat_blk(fd, len, (uint8_t *) &adafruit[i]);
-  }
+  memcpy(gfxbuf,&adafruit,sizeof(adafruit)); /* dst, src, sz */
+  memcpy(gfxbuf+sizeof(adafruit),&adafruit,sizeof(adafruit)); /* dst, src, sz */
 #endif
 }
 
 int width()
 {
-  return 128;
+  return SSD_LCD_WIDTH;
 }
 
 int height()
 {
-  return 32;
+  return SSD_LCD_HEIGHT;
 }
 
 // the most basic function, set a single pixel
