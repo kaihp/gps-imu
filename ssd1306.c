@@ -156,7 +156,7 @@ void ssd130x_init(int fd)
   /*  ssd_cmd1(fd, SSD_COL_PAGE_HI);   /*#  3A --- 0x10: SET_COL_PAGE_HI = 0 */
   ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /*  12A  2B 0xD5: DCLK_DIV = 0x80 */
 
-  ssd_cmd2(fd, SSD_DISP_OFFSET, 5);    /*  11A  4B 0xD3: DISP_OFFSET = 0 */
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /*  11A  4B 0xD3: DISP_OFFSET = 5 */
   /* SSD_MUX_RATIO: Cannot be right after SSD_DCLK_DIV (creates flicker) */
   ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /*  10A  3B 0xA8: MUX_RATIO = 0x1F (x32 display) */
   ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /*   4A  7B 0x20: ADDR_MODE = 2h */
@@ -226,17 +226,6 @@ void ssd130x_init(int fd)
   ssd_cmd1(fd, SSD_SCROLL_ON);
 #endif
 
-  /* 2017/09/29 22:54: Changing SSD_DISP_OFFSET (Cmd 0xD3) has no impact on OLED output */
-
-#if 0
-  int i;
-  for(i=0;i<SSD_LCD_HEIGHT;i++) {
-    ssd_cmd1(fd, SSD_DISP_ST_LINE | i);
-    usleep(100000);
-  }
-
-#endif
-
 #if 0
   int i;
   for(i=0;i<SSD_LCD_HEIGHT;i++) {
@@ -244,6 +233,15 @@ void ssd130x_init(int fd)
     usleep(100000);
   }
   ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);
+#endif
+
+#if 0
+  int i;
+  for(i=0;i<SSD_LCD_HEIGHT;i++) {
+    ssd_cmd2(fd, SSD_DISP_OFFSET, i);
+    usleep(100000);
+  }
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);
 #endif
 }
 
@@ -374,11 +372,9 @@ void ssd_disp_init()
 #endif
 #if 0
   memcpy(gfxbuf,&blank,sizeof(blank)); /* dst, src, sz */
-  /*  memcpy(gfxbuf+sizeof(blank),&blank,sizeof(blank)); /* dst, src, sz */
 #endif
 #if 1
   memcpy(gfxbuf,&adafruit,sizeof(adafruit)); /* dst, src, sz */
-  /* memcpy(gfxbuf+sizeof(adafruit),&adafruit,sizeof(adafruit)); /* dst, src, sz */
 #endif
 }
 
