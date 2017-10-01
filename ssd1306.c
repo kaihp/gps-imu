@@ -127,26 +127,79 @@ void ssd130x_init(int fd)
   ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
   ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 0xAF: DISP = ON */
 #endif
-#if 1
+#if 0
+  /* WORKS, DON'T TOUCH */
   /* Code from UG-2864HSWEG01+user+guide.pdf, pg 19 */
-  ssd_cmd1(fd, SSD_DISP_SLEEP);        /* 0xAE: DISP_ENTIRE_OFF */
-  ssd_cmd1(fd, SSD_COL_PAGE_LO);       /* 0x00: SET_COL_PAGE_LO = 0 */
-  ssd_cmd1(fd, SSD_COL_PAGE_HI);       /* 0x10: SET_COL_PAGE_HI = 0 */
-  ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /* 0x20: ADDR_MODE = 0h */
-  ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /* 0x40: DISP_STARTLINE = 0 */
-  ssd_cmd2(fd, SSD_CONTRAST, 0xCF);    /* 0x81: CONTRAST = 0xCF */
-  ssd_cmd1(fd, SSD_SEG_REMAP127);      /* 0xA1: SEG_REMAP = Y */
-  ssd_cmd1(fd, SSD_COM_SCAN_NORM);     /* 0xC8: COM_SCAN = Normal (0..7) */
-  ssd_cmd1(fd, SSD_DISP_NORM);         /* 0xA6: DISP_NORMAL */
-  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /* 0xA8: MUX_RATIO = 0x1F (x32 display) */
-  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /* 0xD3: DISP_OFFSET = 0 */
-  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /* 0xD5: DCLK_DIV = 0x80 */
-  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 0xD9: PRECHARGE = 0xF1 */
-  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x02);  /* 0xDA: COM_HW PINS = 0x02 */
-  ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 0xDB: VCOMH LEVEL = 0x40 */
-  ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /* 0x8D: CHARGEPUMP = 0x14 */
-  ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
-  ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 0xAF: DISP = ON */
+  ssd_cmd1(fd, SSD_DISP_SLEEP);        /*  1A 0xAE: DISP_ENTIRE_OFF */
+  ssd_cmd1(fd, SSD_COL_PAGE_LO);       /*  2A 0x00: SET_COL_PAGE_LO = 0 */
+  ssd_cmd1(fd, SSD_COL_PAGE_HI);       /*  3A 0x10: SET_COL_PAGE_HI = 0 */
+  ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /*  4A 0x20: ADDR_MODE = 0h */
+  ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /*  5A 0x40: DISP_STARTLINE = 0 */
+  ssd_cmd2(fd, SSD_CONTRAST, 0xCF);    /*  6A 0x81: CONTRAST = 0xCF */
+  ssd_cmd1(fd, SSD_SEG_REMAP127);      /*  7A 0xA1: SEG_REMAP = Y */
+  ssd_cmd1(fd, SSD_COM_SCAN_NORM);     /*  8A 0xC8: COM_SCAN = Normal (0..7) */
+  ssd_cmd1(fd, SSD_DISP_NORM);         /*  9A 0xA6: DISP_NORMAL */
+  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /* 10A 0xA8: MUX_RATIO = 0x1F (x32 display) */
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /* 11A 0xD3: DISP_OFFSET = 0 */
+  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /* 12A 0xD5: DCLK_DIV = 0x80 */
+  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 13A 0xD9: PRECHARGE = 0xF1 */
+  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x02);  /* 14A 0xDA: COM_HW PINS = 0x02 */
+  ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 15A 0xDB: VCOMH LEVEL = 0x40 */
+  ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /* 16A 0x8D: CHARGEPUMP = 0x14 */
+  ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 17A 0xA4: DISP_ENTIRE_RESUME */
+  ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 18A 0xAF: DISP = ON */
+#endif
+#if 1
+  /* Init sequence from u8glib/csrc/u8g_dev_ssd1306_128x32.c */
+  ssd_cmd1(fd, SSD_DISP_SLEEP);        /*#  1A  1B 0xAE: DISP_ENTIRE_OFF */
+  /*  ssd_cmd1(fd, SSD_COL_PAGE_LO);   /*#  2A --- 0x00: SET_COL_PAGE_LO = 0 */
+  /*  ssd_cmd1(fd, SSD_COL_PAGE_HI);   /*#  3A --- 0x10: SET_COL_PAGE_HI = 0 */
+  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /*  12A  2B 0xD5: DCLK_DIV = 0x80 */
+
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 5);    /*  11A  4B 0xD3: DISP_OFFSET = 0 */
+  /* SSD_MUX_RATIO: Cannot be right after SSD_DCLK_DIV (creates flicker) */
+  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /*  10A  3B 0xA8: MUX_RATIO = 0x1F (x32 display) */
+  ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /*   4A  7B 0x20: ADDR_MODE = 2h */
+  ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /*   5A  5B 0x40: DISP_STARTLINE = 0 */
+  ssd_cmd2(fd, SSD_CONTRAST, 0xCF);    /*   6A 11B 0x81: CONTRAST = 0xCF */
+
+
+  /* SSD_DISP_NORM: Sequencing not important */
+  ssd_cmd1(fd, SSD_DISP_NORM);         /*#  9A 16B 0xA6: DISP_NORMAL */
+    /* SSD_PRECHARGE: must come before SSD_COM_HW_CFG */
+  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /*  13A 12B 0xD9: PRECHARGE = 0xF1 */
+  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x12);  /*  14A 10B 0xDA: COM_HW PINS = 0x12 */
+  /* SSD_DISP_ENT_NORM: must come after SSD_COM_HW_CFG, and earlier in seq seems better */
+  ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /*  17A 15B 0xA4: DISP_ENTIRE_RESUME */
+
+  /* SSD_ADDR_MODE: before/after SSD_CONTRAST makes a difference to the display(!) */
+  ssd_cmd1(fd, SSD_SEG_REMAP127);      /*   7A  8B 0xA1: SEG_REMAP = Y */
+  ssd_cmd1(fd, SSD_COM_SCAN_REV);     /*   8A  9B 0xC8: COM_SCAN = Normal (0..7) */
+
+  ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /*  15A 13B 0xDB: VCOMH LEVEL = 0x40 */
+  ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /*  16A  6B 0x8D: CHARGEPUMP = 0x14 */
+  /*  ssd_cmd1(fd, SSD_SCROLL_OFF);    /*  --- 14B 0x2E: SCROLL = DEACTIVATE */
+  ssd_cmd1(fd, SSD_DISP_AWAKE);        /*# 18A 17B 0xAF: DISP = ON */
+#endif
+#if 0
+  /* Init sequence from u8glib/csrc/u8g_dev_ssd1306_128x32.c */
+  ssd_cmd1(fd, SSD_DISP_SLEEP);        /*  1 0xAE: DISP_ENTIRE_OFF */
+  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /*  2 0xD5: DCLK_DIV = 0x80 */
+  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /*  3 0xA8: MUX_RATIO = 0x1F (x32 display) */
+  ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /*  4 0xD3: DISP_OFFSET = 0 */
+  ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /*  5 0x40: DISP_STARTLINE = 0 */
+  ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /*  6 0x8D: CHARGEPUMP = 0x14 */
+  ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /*  7 0x20: ADDR_MODE = 2h */
+  ssd_cmd1(fd, SSD_SEG_REMAP127);      /*  8 0xA1: SEG_REMAP = Y */
+  ssd_cmd1(fd, SSD_COM_SCAN_NORM);     /*  9 0xC8: COM_SCAN = Normal (0..7) */
+  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x12);  /* 10 0xDA: COM_HW PINS = 0x12 */
+  ssd_cmd2(fd, SSD_CONTRAST, 0xCF);    /* 11 0x81: CONTRAST = 0xCF */
+  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 12 0xD9: PRECHARGE = 0xF1 */
+  ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 13 0xDB: VCOMH LEVEL = 0x40 */
+  ssd_cmd1(fd, SSD_SCROLL_OFF);        /* 14 0x2E: SCROLL = DEACTIVATE */
+  ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 15 0xA4: DISP_ENTIRE_RESUME */
+  ssd_cmd1(fd, SSD_DISP_NORM);         /* 16 0xA6: DISP_NORMAL */
+  ssd_cmd1(fd, SSD_DISP_AWAKE);        /* 17 0xAF: DISP = ON */
 #endif
 
   /* If not allocated, allocate gfx buffer; else: zero contents */
@@ -321,11 +374,11 @@ void ssd_disp_init()
 #endif
 #if 0
   memcpy(gfxbuf,&blank,sizeof(blank)); /* dst, src, sz */
-  memcpy(gfxbuf+sizeof(blank),&blank,sizeof(blank)); /* dst, src, sz */
+  /*  memcpy(gfxbuf+sizeof(blank),&blank,sizeof(blank)); /* dst, src, sz */
 #endif
 #if 1
   memcpy(gfxbuf,&adafruit,sizeof(adafruit)); /* dst, src, sz */
-  memcpy(gfxbuf+sizeof(adafruit),&adafruit,sizeof(adafruit)); /* dst, src, sz */
+  /* memcpy(gfxbuf+sizeof(adafruit),&adafruit,sizeof(adafruit)); /* dst, src, sz */
 #endif
 }
 
