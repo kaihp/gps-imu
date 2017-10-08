@@ -90,11 +90,11 @@ void mpu9250_init(int mpu)
   int res;
   res = i2c_rd8(mpu,MPU_WHO_AM_I);
   if(res<0) {
-    puts("Unable to talk to MPU9250 sensor (bad WHOAMI value).");
+    printf("Unable to talk to MPU9250 sensor (bad WHOAMI response %02X).\n",res);
     exit(-1);
   }
-  if(res!=MPU_WHOAMI_MAGIC) {
-    puts("Unable to recognize MPU9250 sensor (bad MAGIC value).");
+  if((res!=MPU_WHOAMI_MAGIC1) && (res!=MPU_WHOAMI_MAGIC2)) {
+    printf("Unable to recognize MPU9250 sensor (bad MAGIC value %02X).\n",res);
     exit(-1);
   }
     
