@@ -7,14 +7,18 @@
  * Kai Harrekilde-Petersen (C) 2017
  *
  */
+#ifndef __SSD1306_REGS_H__
+#define __SSD1306_REGS_H__
+#include <stdint.h>
 
 #include "ssd1306.h"
 
-#ifndef __SSD1306_REGS_H__
-#define __SSD1306_REGS_H__
+extern const uint8_t font_8x8[][8];
+extern const uint8_t font_7x5[][5];
 
 /* Co D/C# */
-#define SSD_C  (0x80)
+/* For some reason, 0x80 as Co doesn't work */
+#define SSD_C  (0x00)
 #define SSD_D  (0x40)
 #define SSD_CD (0xC0)
 

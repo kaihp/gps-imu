@@ -5,6 +5,9 @@
  * Note: each uint8_t represents a Horizontal bit pattern (not a vertical 'scan')
  * with bit 1 is the topmost bit and bit 7 the bottommost bit.
  */
+
+#include <stdint.h>
+
 const uint8_t font_7x5[][5] =  {
   /* 32 - 63 */
   {0x00,0x00,0x00,0x00,0x00},
@@ -106,5 +109,3 @@ const uint8_t font_7x5[][5] =  {
   {0x02,0x01,0x01,0x02,0x01},
   {0x02,0x05,0x05,0x02,0x00}
 };
-
-#endif
