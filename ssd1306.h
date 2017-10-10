@@ -15,16 +15,13 @@
 /* SSD1306 I2C address */
 #define RA_SSD1306       (0x3C)
 
-#define SSD_LCD_WIDTH  (128)
-#define SSD_LCD_HEIGHT (32)
-
 #define COLOR_BLK (0)
 #define COLOR_WHT (1)
 #define COLOR_INV (2)
 
 void ssd130x_power(int fd, int on);
 void ssd130x_reset(int fd);
-void ssd130x_init(int fd);
+void ssd130x_init(int fd, int w, int h);
 void ssd_disp_awake(int fd, int awake);
 void ssd_disp_update(int fd);
 void ssd_disp_init(void);

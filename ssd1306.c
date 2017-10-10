@@ -20,15 +20,9 @@
 
 #define VERSION "0.0.2"
 
+static int __width, __height;
 uint8_t *gfxbuf = NULL; /* Graphics buffer */
-
-uint8_t img8[8] = {0x7F, 0x09, 0x09, 0x9, 0x09, 0x01, 0x01, 0x00};
-
-uint8_t img16[32] = {
-  0xFF, 0xFF, 0xFF, 0xC7, 0xC7, 0xC7, 0xC7, 0xC7, /* Upper 8 pixel rows */
-  0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x00, 0x00,
-  0x7F, 0x7F, 0x7F, 0x01, 0x01, 0x01, 0x01, 0x01, /* Lower 8 pixel rows */
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+int ssd_x, ssd_y; /* coords inside OLED display. (0,0) is the Upper/Left corner */
 
 void ssd130x_power(int fd, int on)
 {
@@ -78,8 +72,13 @@ void ssd_dat_blk(int fd, int len, uint8_t *data)
   i2c_wr_blk(fd, SSD_D, len, data);
 }
 
-void ssd130x_init(int fd)
+void ssd130x_init(int fd, int w, int h)
 {
+  if(w!=128 || (h!=32 && h!=64)) {
+    exit(-1);
+  }
+  __width=w;
+  __height=h;
 /*
 
  * Software initialization must NOT be done according to <SSD1306.pdf,
@@ -125,13 +124,13 @@ void ssd130x_init(int fd)
 
   /* If not allocated, allocate gfx buffer; else: zero contents */
   if(NULL==gfxbuf) {
-    gfxbuf = calloc((size_t) SSD_LCD_WIDTH*SSD_LCD_HEIGHT/4, sizeof(uint8_t));
+    gfxbuf = calloc((size_t) w*h/8, sizeof(uint8_t));
     if(NULL==gfxbuf) {
       puts("Unable to allocate memory for graphics buffer");
       exit(-1);
     }
   } else {
-    memset(gfxbuf, 0, (size_t) SSD_LCD_WIDTH*SSD_LCD_HEIGHT/4);
+    memset(gfxbuf, 0, (size_t) w*h/8);
   }
   /* Update GDDRAM from gfxbuf */
   ssd_disp_update(fd);
@@ -152,17 +151,17 @@ void ssd_disp_update(int fd)
   int len=I2C_BLK_MAX;
 
   /* Tell which area we want to update */
-  ssd_cmd3(fd, SSD_ADDR_COL, 0, SSD_LCD_WIDTH-1);
-  ssd_cmd3(fd, SSD_ADDR_PAGE, 0, (SSD_LCD_HEIGHT/8)-1);
+  ssd_cmd3(fd, SSD_ADDR_COL, 0, __width-1);
+  ssd_cmd3(fd, SSD_ADDR_PAGE, 0, (__height/8)-1);
   /* Copy from gfxbuf to display */
-  for(i=0;i<SSD_LCD_WIDTH*SSD_LCD_HEIGHT/8;i+=len) {
+  for(i=0;i<__width*__height/8;i+=len) {
     ssd_dat_blk(fd, len, (uint8_t *) &gfxbuf[i]);
   }
 }
 
 void disp_init_triangle()
 {
-  static uint8_t img[SSD_LCD_HEIGHT*SSD_LCD_WIDTH/8] = {
+  static uint8_t img[128*32/8] = {
     /* Row 0-7, col 0-127, bit0 = topmost row, bit7 = lowest row */
     0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -205,7 +204,7 @@ void disp_init_triangle()
 
 void disp_init_adafruit()
 {
-  static uint8_t adafruit[SSD_LCD_HEIGHT*SSD_LCD_WIDTH/8] = {
+  static uint8_t adafruit[128*32/8] = {
     /* Row 0-7, col 0-127 */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -248,12 +247,12 @@ void disp_init_adafruit()
 
 int width()
 {
-  return SSD_LCD_WIDTH;
+  return __width;
 }
 
 int height()
 {
-  return SSD_LCD_HEIGHT;
+  return __height;
 }
 
 /*
@@ -261,17 +260,17 @@ int height()
  */
 void ssd_plot(uint8_t x, uint8_t y, int color)
 {
-  if (x<SSD_LCD_WIDTH && y<SSD_LCD_HEIGHT) {
+  if (x<__width && y<__height) {
     int line = y >> 3;
     uint8_t byte = 1 << (y%8);
     if(color==0) {
-      gfxbuf[line*SSD_LCD_WIDTH+x] &= ~byte; /* CLR */
+      gfxbuf[line*__width+x] &= ~byte; /* CLR */
     }
     if(color==1) {
-      gfxbuf[line*SSD_LCD_WIDTH+x] |= byte; /* SET */
+      gfxbuf[line*__width+x] |= byte; /* SET */
     }
     if(color==2) {
-      gfxbuf[line*SSD_LCD_WIDTH+x] ^= byte; /* INV */
+      gfxbuf[line*__width+x] ^= byte; /* INV */
     }
   }
 }
@@ -340,20 +339,25 @@ void ssd130x_scroll_h(int fd, int dir)
  
 int main (void)
 {
+  int i;
   int disp = i2c_init_dev(RA_SSD1306);
   if(-1==disp) {
     puts("Failed to setup OLED display\n");
     exit(-1);
   }
-  ssd130x_init(disp);
+  ssd130x_init(disp,128,32);
   disp_init_adafruit(disp);
   ssd_disp_update(disp);
-  usleep(100000);
+
+  for(i=0;i<__height;i++) {
+    ssd_plot(i,i,COLOR_INV);
+    usleep(100000);
+    ssd_disp_update(disp);
+  }
+  ssd_plot(width()-1,height()-1,COLOR_INV);
 #if 0
-  ssd_plot(0,0,COLOR_WHT);
-  ssd_plot(SSD_LCD_WIDTH-1,SSD_LCD_HEIGHT-1,COLOR_INV);
+  ssd_plot(__width-1,__height-1,COLOR_INV);
   ssd_plot(127,0,COLOR_INV);
-  ssd_plot(0,31,COLOR_INV);
 #endif
   
   ssd_disp_update(disp);
