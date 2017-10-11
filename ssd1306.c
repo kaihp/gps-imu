@@ -15,14 +15,16 @@
 #include <string.h>
 
 #include "i2c.h"
+#include "fonts.h"
 #include "ssd1306.h"
 #include "ssd1306_regs.h"
 
-#define VERSION "0.0.2"
+#define VERSION "0.0.3"
 
 static int __width, __height;
 uint8_t *gfxbuf = NULL; /* Graphics buffer */
 int ssd_x, ssd_y; /* coords inside OLED display. (0,0) is the Upper/Left corner */
+font_t *ssd_font;
 
 void ssd130x_power(int fd, int on)
 {
@@ -245,12 +247,16 @@ void disp_init_adafruit()
 
 }
 
-int width()
+void ssd_disp_clear() {
+  memset(gfxbuf, 0, (size_t) ssd_width()*ssd_height()/8);
+}
+
+int ssd_width()
 {
   return __width;
 }
 
-int height()
+int ssd_height()
 {
   return __height;
 }
@@ -263,54 +269,70 @@ void ssd_plot(uint8_t x, uint8_t y, int color)
   if (x<__width && y<__height) {
     int line = y >> 3;
     uint8_t byte = 1 << (y%8);
-    if(color==0) {
+    if(color==COLOR_BLK) {
       gfxbuf[line*__width+x] &= ~byte; /* CLR */
     }
-    if(color==1) {
+    if(color==COLOR_WHT) {
       gfxbuf[line*__width+x] |= byte; /* SET */
     }
-    if(color==2) {
+    if(color==COLOR_INV) {
       gfxbuf[line*__width+x] ^= byte; /* INV */
     }
   }
 }
 
-void ssd_coor(uint8_t row, uint8_t col)
+void ssd_set_xy(uint8_t x, uint8_t y)
 {
-#if 0
-  const uint8_t cmd[] = {SSD_COL_PAGE_HI+5, SSD_COL_PAGE_LO+4*col,
-			 SSD_};
-    //Column Address
-    sendCommand(0x15);             /* Set Column Address */
-    sendCommand(0x08+(Column*4));  /* Start Column: Start from 8 */
-    sendCommand(0x37);             /* End Column */
-    // Row Address
-    sendCommand(0x75);             /* Set Row Address */
-    sendCommand(0x00+(Row*8));     /* Start Row*/
-    sendCommand(0x07+(Row*8));     /* End Row*/
-#endif
+  ssd_x = x;
+  ssd_y = y;
 }
 
+void ssd_set_font(font_t *font)
+{
+  ssd_font = font;
+}
+
+/*
+ * Print a single glyph from the default font
+ * Note: does NOT move the (x,y) coor
+ */
 void ssd_putc(char ch)
 {
-  /* All characters 0-255 are implemented */
-  if(ch<0 || ch>255) {
-    ch=' '; //Space
+  uint64_t vscan;
+  uint64_t vmask;
+  uint8_t *glyphptr;
+  int x,y;
+  int lsl;
+  if (ch<ssd_font->first || ch>ssd_font->last) {
+    /* Character out of range - abort */
+    return;
   }
-#if 0
-  for(char i=0;i<8;i=i+2) {
-    for(char j=0;j<8;j++) {
-      /* Character is constructed two pixel at a time using vertical mode from the default 8x8 font */
-      char c=0x00;
-      char bit1= (seedfont[ch][i]   >> j) & 0x01;  
-      char bit2= (seedfont[ch][i+1] >> j) & 0x01;
-      /* Each bit is changed to a nibble */
-      c|=(bit1)?grayH:0x00;
-      c|=(bit2)?grayL:0x00;
-      sendData(c);
+  /* point to the first uint8_t of the chosen character */
+  int idx = (ch-ssd_font->first) * ssd_font->x * ((ssd_font->y+7) >> 3);
+  /* printf("ch=%02Xh font->x=%d font->y=%d glyph-idx=%d\n",ch, ssd_font->x, ssd_font->y, idx); */
+  glyphptr = ssd_font->glyphs+idx;
+  lsl = ssd_y -  ((8 - ssd_font->y % 8) % 8);
+  vmask = (~(~0ULL << ssd_font->y)) << ssd_y;
+  /* printf("ch=%02Xh x=%d y=%d lsl=%3d vmask=%08llx\n",ch,ssd_x,ssd_y,lsl,vmask); */
+  /* For each column, assemble vscan, align it, and "print" it */
+  for(x=0;x<ssd_font->x;x++) {
+    vscan = 0;
+    /* assemble complete vertical scan */
+    /* printf("y_max=%d\n",((ssd_font->y+7)>>3)-1); */
+    for(y=0;y<((ssd_font->y+7)>>3);y++) {
+      vscan |= glyphptr[x+y*ssd_font->x] << (y*8);
+    }
+    /* align vscan to match destination uint8_t's */
+    /* printf("%2d %08llx %08llx\n",x,vscan, (lsl>=0) ? vscan << lsl : vscan >> -lsl); */
+    vscan = (lsl>=0) ? vscan << lsl : vscan >> -lsl;
+    for(y=(ssd_font->y+ssd_y-1)>>3; y>=ssd_y>>3; y--) {
+      int idx = __width*y + ssd_x+x;
+      uint8_t tmp = gfxbuf[idx];
+      tmp &= ~vmask >> 8*y; /* set pixels in glyph area */
+      tmp |=  vscan >> 8*y; /* apply glyph */
+      gfxbuf[idx] = tmp;  /* writeback */
     }
   }
-#endif
 }
 
 void ssd_puts(const char *str)
@@ -339,29 +361,47 @@ void ssd130x_scroll_h(int fd, int dir)
  
 int main (void)
 {
-  int i;
+  int i,j;
+  int x,y;
   int disp = i2c_init_dev(RA_SSD1306);
   if(-1==disp) {
     puts("Failed to setup OLED display\n");
     exit(-1);
   }
   ssd130x_init(disp,128,32);
-  disp_init_adafruit(disp);
   ssd_disp_update(disp);
 
-  for(i=0;i<__height;i++) {
-    ssd_plot(i,i,COLOR_INV);
-    usleep(100000);
-    ssd_disp_update(disp);
-  }
-  ssd_plot(width()-1,height()-1,COLOR_INV);
-#if 0
-  ssd_plot(__width-1,__height-1,COLOR_INV);
-  ssd_plot(127,0,COLOR_INV);
-#endif
+#if 1
+  /* Font/glyph printing tests with all fonts and all implemented
+   * characters
+   */
+  font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
   
-  ssd_disp_update(disp);
-  exit(0);
+  for(i=0;i<sizeof(tests) / sizeof(font_t *);i++) {
+    ssd_set_font(tests[i]);
+    ssd_disp_clear();
+    x=0;
+    y=0;
+    for(j=ssd_font->first;j<=ssd_font->last;j++) {
+      ssd_set_xy(x,y);
+      ssd_putc(j);
+      x += ssd_font->x + ssd_font->hspace;
+      if ((x + ssd_font->x) > ssd_width()) {
+	x = 0;
+	y += ssd_font->y + ssd_font->vspace;
+	if ((y + ssd_font->y) > ssd_height()) {
+	  ssd_disp_update(disp);
+	  getc(stdin);
+	  if (j!=ssd_font->last) ssd_disp_clear();
+	  y = 0;
+	}
+      }
+    } /* for(j) */
+    ssd_disp_update(disp);
+    if (y||x) getc(stdin);
+  }
+#endif
+
 }
 
 /* ************************************************************

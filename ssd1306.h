@@ -8,9 +8,10 @@
  *
  */
 
-
 #ifndef __SSD1306_H__
 #define __SSD1306_H__
+
+#include "fonts.h"
 
 /* SSD1306 I2C address */
 #define RA_SSD1306       (0x3C)
@@ -22,11 +23,15 @@
 void ssd130x_power(int fd, int on);
 void ssd130x_reset(int fd);
 void ssd130x_init(int fd, int w, int h);
+void ssd_disp_clear();
 void ssd_disp_awake(int fd, int awake);
 void ssd_disp_update(int fd);
 void ssd_disp_init(void);
+int  ssd_width();
+int  ssd_height();
 void ssd_plot(uint8_t x, uint8_t y, int color);
-void ssd_coor(uint8_t row, uint8_t col);
+void ssd_set_xy(uint8_t x, uint8_t y);
+void ssd_set_font(font_t *font);
 void ssd_putc(char ch);
 void ssd_puts(const char *str);
 

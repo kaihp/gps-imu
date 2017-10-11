@@ -13,9 +13,6 @@
 
 #include "ssd1306.h"
 
-extern const uint8_t font_8x8[][8];
-extern const uint8_t font_7x5[][5];
-
 /* Co D/C# */
 /* For some reason, 0x80 as Co doesn't work */
 #define SSD_C  (0x00)
