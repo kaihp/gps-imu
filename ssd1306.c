@@ -269,15 +269,34 @@ void ssd_plot(uint8_t x, uint8_t y, int color)
   if (x<__width && y<__height) {
     int line = y >> 3;
     uint8_t byte = 1 << (y%8);
-    if(color==COLOR_BLK) {
-      gfxbuf[line*__width+x] &= ~byte; /* CLR */
+    if(color==COLOR_BLK) gfxbuf[line*__width+x] &= ~byte;
+    if(color==COLOR_WHT) gfxbuf[line*__width+x] |=  byte;
+    if(color==COLOR_INV) gfxbuf[line*__width+x] ^= byte;
+  }
+}
+
+void ssd_rect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, int color)
+{
+  uint64_t vmask;
+  int x,y, idx;
+  uint8_t tmp;
+
+  /* Ensure that x0<=x1 and y0<=y1 */
+  if(x0>x1) { tmp=x0; x0=x1; x1=tmp; }
+  if(y0>y1) { tmp=y0; y0=y1; y1=tmp; }
+  if(x1>=__width || y1>=__height) return;
+
+  vmask = (~(~0ULL << (y1-y0+1))) << (y0 % 8);
+  for(y=y0>>3;y<=(y1+7)>>3;y++) {
+    idx = x0 + __width*y;
+    for(x=x0;x<=x1;x++) {
+      tmp = gfxbuf[idx];
+      if(color==COLOR_BLK) tmp &= ~vmask;
+      if(color==COLOR_WHT) tmp |=  vmask;
+      if(color==COLOR_INV) tmp ^=  vmask;
+      gfxbuf[idx++] = tmp;
     }
-    if(color==COLOR_WHT) {
-      gfxbuf[line*__width+x] |= byte; /* SET */
-    }
-    if(color==COLOR_INV) {
-      gfxbuf[line*__width+x] ^= byte; /* INV */
-    }
+    vmask >>= 8;
   }
 }
 
@@ -287,9 +306,9 @@ void ssd_set_xy(uint8_t x, uint8_t y)
   ssd_y = y;
 }
 
-void ssd_set_font(font_t *font)
+void ssd_set_font(const font_t *font)
 {
-  ssd_font = font;
+  ssd_font = (font_t *) font;
 }
 
 /*
@@ -309,27 +328,37 @@ void ssd_putc(char ch)
   }
   /* point to the first uint8_t of the chosen character */
   int idx = (ch-ssd_font->first) * ssd_font->x * ((ssd_font->y+7) >> 3);
-  /* printf("ch=%02Xh font->x=%d font->y=%d glyph-idx=%d\n",ch, ssd_font->x, ssd_font->y, idx); */
   glyphptr = ssd_font->glyphs+idx;
-  lsl = ssd_y -  ((8 - ssd_font->y % 8) % 8);
+  lsl = ssd_y - ((8 - ssd_font->y % 8) % 8);
   vmask = (~(~0ULL << ssd_font->y)) << ssd_y;
-  /* printf("ch=%02Xh x=%d y=%d lsl=%3d vmask=%08llx\n",ch,ssd_x,ssd_y,lsl,vmask); */
   /* For each column, assemble vscan, align it, and "print" it */
   for(x=0;x<ssd_font->x;x++) {
     vscan = 0;
     /* assemble complete vertical scan */
-    /* printf("y_max=%d\n",((ssd_font->y+7)>>3)-1); */
-    for(y=0;y<((ssd_font->y+7)>>3);y++) {
-      vscan |= glyphptr[x+y*ssd_font->x] << (y*8);
+    for(y=((ssd_font->y+7)>>3)-1;y>=0;y--) {
+      vscan = (vscan << 8) | glyphptr[x+y*ssd_font->x];
     }
     /* align vscan to match destination uint8_t's */
-    /* printf("%2d %08llx %08llx\n",x,vscan, (lsl>=0) ? vscan << lsl : vscan >> -lsl); */
     vscan = (lsl>=0) ? vscan << lsl : vscan >> -lsl;
+#if 0
     for(y=(ssd_font->y+ssd_y-1)>>3; y>=ssd_y>>3; y--) {
       int idx = __width*y + ssd_x+x;
       uint8_t tmp = gfxbuf[idx];
+      uint8_t t0 = tmp;
       tmp &= ~vmask >> 8*y; /* set pixels in glyph area */
       tmp |=  vscan >> 8*y; /* apply glyph */
+#else
+    vmask >>= (ssd_y & ~0x7);
+    vscan >>= (ssd_y & ~0x7);
+    for(y=ssd_y>>3; y<=(ssd_font->y+ssd_y-1)>>3; y++) {
+      int idx = __width*y + ssd_x+x;
+      uint8_t tmp = gfxbuf[idx];
+      uint8_t t0 = tmp;
+      tmp &= ~vmask; /* set pixels in glyph area */
+      tmp |=  vscan; /* apply glyph */
+      vmask >>= 8;
+      vscan >>= 8;
+#endif
       gfxbuf[idx] = tmp;  /* writeback */
     }
   }
@@ -339,8 +368,14 @@ void ssd_puts(const char *str)
 {
   unsigned char i=0;
   while(str[i]) {
-    ssd_putc(str[i]);     
+    ssd_putc(str[i]);
+    ssd_x += ssd_font->x + ssd_font->hspace;
+    if ((ssd_x + ssd_font->x) > ssd_width()) {
+      ssd_x = 0;
+      ssd_y += ssd_font->y + ssd_font->vspace;
+    }
     i++;
+    if((ssd_y+ ssd_font->y) > ssd_height()) break;
   }
 }
 
@@ -375,14 +410,18 @@ int main (void)
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
-  font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
+  const font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
   
   for(i=0;i<sizeof(tests) / sizeof(font_t *);i++) {
     ssd_set_font(tests[i]);
     ssd_disp_clear();
     x=0;
     y=0;
+#if 1
     for(j=ssd_font->first;j<=ssd_font->last;j++) {
+#else
+    for(j=64;j<=66;j++) {
+#endif
       ssd_set_xy(x,y);
       ssd_putc(j);
       x += ssd_font->x + ssd_font->hspace;
@@ -402,6 +441,18 @@ int main (void)
   }
 #endif
 
+#if 0
+  /* ssd_rect() testing */
+  ssd_set_xy(0,0);
+  ssd_set_font(&font_7x5);
+  char str[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+  ssd_puts(str);
+  ssd_disp_update(disp);
+  getc(stdin);
+  ssd_rect(0, 0,127,31,COLOR_INV);
+  ssd_rect(0, 7,127, 8,COLOR_BLK);
+  ssd_disp_update(disp);
+#endif
 }
 
 /* ************************************************************

@@ -30,8 +30,9 @@ void ssd_disp_init(void);
 int  ssd_width();
 int  ssd_height();
 void ssd_plot(uint8_t x, uint8_t y, int color);
+void ssd_rect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, int color);
 void ssd_set_xy(uint8_t x, uint8_t y);
-void ssd_set_font(font_t *font);
+void ssd_set_font(const font_t *font);
 void ssd_putc(char ch);
 void ssd_puts(const char *str);
 
