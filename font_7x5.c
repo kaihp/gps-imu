@@ -111,6 +111,8 @@ const uint8_t glyph7x5[] = {
   /* 128-129: non-ASCII arrows */
   0x40,0x60,0xFE,0x60,0x40, /* Arrow-down */
   0x08,0x0C,0xFE,0x0C,0x08, /* Arrow-up   */
+  0x38,0x44,0x44,0x44,0x38, /* Circle     */
+  0x38,0x7C,0x7C,0x7C,0x38, /* Disc       */
 };
 
 const font_t font_7x5 = {
@@ -120,6 +122,6 @@ const font_t font_7x5 = {
   .hspace = 1,
   .vspace = 1,
   .first = 32,
-  .last = 129,
+  .last = 131,
   .glyphs =  (uint8_t *) &glyph7x5
 };

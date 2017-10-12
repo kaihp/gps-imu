@@ -41,8 +41,8 @@ typedef struct font {
   uint8_t *glyphs; /* ptr to arr of size (last-first+1)*x*((y+7)>>3) */
 } font_t;
 
-extern font_t font_7x5;
-extern font_t font_8x8;
-extern font_t font_21x14;
+extern const font_t font_7x5;
+extern const font_t font_8x8;
+extern const font_t font_21x14;
 
 #endif
