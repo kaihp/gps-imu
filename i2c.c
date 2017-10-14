@@ -69,7 +69,7 @@ int i2c_rd16(int fd, int addr)
 
 int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
 {
-  uint8_t buf[1+I2C_BLK_MAX];
+  uint8_t buf[2+I2C_BLK_MAX];
   int full, partial;
   int nbytes=0;
   /* Chop xfer into blocks of I2C_BLK_MAX bytes */
@@ -81,7 +81,7 @@ int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
       memcpy(&data[nbytes],&buf[1],I2C_BLK_MAX); /* dst,src,size_t */
       nbytes+=I2C_BLK_MAX;
     } else {
-      return -1;
+      return -nbytes;
     }
   }
   if(partial!=0) {
@@ -90,7 +90,7 @@ int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
       memcpy(&data[nbytes],&buf[1],partial); /* dst,src,size_t */
       nbytes+=partial;
     } else {
-      return -1;
+      return -nbytes;
     }
   }
   return nbytes;
@@ -125,7 +125,7 @@ int i2c_wr16(int fd, int addr, uint16_t data)
 
 int i2c_wr_blk(int fd, int addr, int length, uint8_t *data)
 {
-  uint8_t buf[1+I2C_BLK_MAX];
+  uint8_t buf[2+I2C_BLK_MAX];
   int full, partial;
   int nbytes=0;
   /* Chop xfer into blocks of I2C_BLK_MAX bytes */
@@ -137,7 +137,7 @@ int i2c_wr_blk(int fd, int addr, int length, uint8_t *data)
     if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_data *) buf)) {
       nbytes+=I2C_BLK_MAX;
     } else {
-      return -1;
+      return -nbytes;
     }
   }
   if(partial!=0) {
@@ -146,7 +146,7 @@ int i2c_wr_blk(int fd, int addr, int length, uint8_t *data)
     if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_data *) buf)) {
       nbytes+=partial;
     } else {
-      return -1;
+      return -nbytes;
     }
   }
   return nbytes;

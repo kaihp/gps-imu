@@ -406,7 +406,7 @@ int main (void)
   ssd130x_init(disp,128,32);
   ssd_disp_update(disp);
 
-#if 1
+#if 0
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
@@ -417,11 +417,7 @@ int main (void)
     ssd_disp_clear();
     x=0;
     y=0;
-#if 1
     for(j=ssd_font->first;j<=ssd_font->last;j++) {
-#else
-    for(j=64;j<=66;j++) {
-#endif
       ssd_set_xy(x,y);
       ssd_putc(j);
       x += ssd_font->x + ssd_font->hspace;
@@ -441,6 +437,27 @@ int main (void)
   }
 #endif
 
+#if 1
+  /*
+   * Test that we can print glyphs in any row (x)
+   */
+  const font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
+  for(i=0;i<sizeof(tests)/sizeof(font_t *);i++) {
+    ssd_set_font(tests[i]);
+    ssd_disp_clear();
+    x = 0;
+    y = 0;
+    for(j='A';j<'Z';j++) {
+      ssd_set_xy(x,y);
+      ssd_putc(j);
+      x += ssd_font->x + ssd_font->hspace;
+      y += 1;
+    }
+    ssd_disp_update(disp);
+    getc(stdin);
+  }
+#endif
+      
 #if 0
   /* ssd_rect() testing */
   ssd_set_xy(0,0);

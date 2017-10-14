@@ -7,6 +7,12 @@
 #include "mpu9250_regs.h"
 #include "bmp280_regs.h"
 
+#if defined(ALL) || (!defined(ACC) && !defined(GYRO) && !defined(BMP))
+#define ACC
+#define GYRO
+#define BMP
+#endif
+
 /* HW-types of size 8, 16, 32, and 64 bits */
 typedef int8_t   s8_t;
 typedef uint8_t  u8_t;
@@ -126,24 +132,24 @@ void bmp280_init(int bmp)
   u8_t buf[1+CAL_SZ]; /* Add 1 byte for size in [0] */
   buf[0] = CAL_SZ; /* how many bytes to (burst) read */
   res =  i2c_rd_blk(bmp,BMP_CAL_DIG_T1_LSB,buf[0],(u8_t *)&buf);
-  if((res != CAL_SZ) || (buf[0] != CAL_SZ)){
+  if(res != CAL_SZ){
     puts("Unable to read calibration values in a BLOCK_READ");
-    printf("Expected %d bytes, got %d.\n",CAL_SZ, buf[0]);
+    printf("Expected %d bytes, got %d.\n",CAL_SZ, res);
     exit(-1);
   }
   /* buf[0] contains the amount of bytes read; so skip that */
-  bmp_cal.dig_T1 = (u16_t) (buf[ 2] <<  8 | buf[ 1]);
-  bmp_cal.dig_T2 = (s16_t) (buf[ 4] <<  8 | buf[ 3]);
-  bmp_cal.dig_T3 = (s16_t) (buf[ 6] <<  8 | buf[ 5]);
-  bmp_cal.dig_P1 = (u16_t) (buf[ 8] <<  8 | buf[ 7]);
-  bmp_cal.dig_P2 = (s16_t) (buf[10] <<  8 | buf[ 9]);
-  bmp_cal.dig_P3 = (s16_t) (buf[12] <<  8 | buf[11]);
-  bmp_cal.dig_P4 = (s16_t) (buf[14] <<  8 | buf[13]);
-  bmp_cal.dig_P5 = (s16_t) (buf[16] <<  8 | buf[15]);
-  bmp_cal.dig_P6 = (s16_t) (buf[18] <<  8 | buf[17]);
-  bmp_cal.dig_P7 = (s16_t) (buf[20] <<  8 | buf[19]);
-  bmp_cal.dig_P8 = (s16_t) (buf[22] <<  8 | buf[21]);
-  bmp_cal.dig_P9 = (s16_t) (buf[24] <<  8 | buf[23]);
+  bmp_cal.dig_T1 = (u16_t) (buf[ 1] <<  8 | buf[ 0]);
+  bmp_cal.dig_T2 = (s16_t) (buf[ 3] <<  8 | buf[ 2]);
+  bmp_cal.dig_T3 = (s16_t) (buf[ 5] <<  8 | buf[ 4]);
+  bmp_cal.dig_P1 = (u16_t) (buf[ 7] <<  8 | buf[ 6]);
+  bmp_cal.dig_P2 = (s16_t) (buf[19] <<  8 | buf[ 8]);
+  bmp_cal.dig_P3 = (s16_t) (buf[11] <<  8 | buf[10]);
+  bmp_cal.dig_P4 = (s16_t) (buf[13] <<  8 | buf[12]);
+  bmp_cal.dig_P5 = (s16_t) (buf[15] <<  8 | buf[14]);
+  bmp_cal.dig_P6 = (s16_t) (buf[17] <<  8 | buf[16]);
+  bmp_cal.dig_P7 = (s16_t) (buf[19] <<  8 | buf[18]);
+  bmp_cal.dig_P8 = (s16_t) (buf[21] <<  8 | buf[20]);
+  bmp_cal.dig_P9 = (s16_t) (buf[23] <<  8 | buf[22]);
   return;
 }
 
@@ -185,12 +191,12 @@ void bmp_rd_raw_pres_temp(bmp280_pres_temp_t *res)
 {
   union i2c_data tmp;
   i2c_rd_blk(bmp,BMP_PRESS_MSB,sizeof(bmp280_pres_temp_t),(u8_t *) &tmp);
-  res->pres.msb = tmp.blk[1];
-  res->pres.lsb = tmp.blk[2];
-  res->pres.xsb = tmp.blk[3];
-  res->temp.msb = tmp.blk[4];
-  res->temp.lsb = tmp.blk[5];
-  res->temp.xsb = tmp.blk[6];
+  res->pres.msb = tmp.blk[0];
+  res->pres.lsb = tmp.blk[1];
+  res->pres.xsb = tmp.blk[2];
+  res->temp.msb = tmp.blk[3];
+  res->temp.lsb = tmp.blk[4];
+  res->temp.xsb = tmp.blk[5];
   return;
 }
 
