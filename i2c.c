@@ -71,7 +71,7 @@ int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
 {
   uint8_t buf[1+I2C_BLK_MAX];
   int full, partial;
-  int nbytes=1;
+  int nbytes=0;
   /* Chop xfer into blocks of I2C_BLK_MAX bytes */
   full = length/I2C_BLK_MAX;
   partial = length & (I2C_BLK_MAX-1);
@@ -93,7 +93,7 @@ int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
       return -1;
     }
   }
-  return --nbytes;
+  return nbytes;
 }
 
 int i2c_wr(int fd, int cmd)
