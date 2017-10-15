@@ -319,6 +319,7 @@ void ssd_putc(char ch)
 {
   uint64_t vscan;
   uint64_t vmask;
+  uint64_t mask;
   uint8_t *glyphptr;
   int x,y;
   int lsl;
@@ -330,9 +331,10 @@ void ssd_putc(char ch)
   int idx = (ch-ssd_font->first) * ssd_font->x * ((ssd_font->y+7) >> 3);
   glyphptr = ssd_font->glyphs+idx;
   lsl = ssd_y - ((8 - ssd_font->y % 8) % 8);
-  vmask = (~(~0ULL << ssd_font->y)) << ssd_y;
+  mask = (~(~0ULL << ssd_font->y)) << ssd_y;
   /* For each column, assemble vscan, align it, and "print" it */
   for(x=0;x<ssd_font->x;x++) {
+    vmask = mask;
     vscan = 0;
     /* assemble complete vertical scan */
     for(y=((ssd_font->y+7)>>3)-1;y>=0;y--) {
@@ -447,10 +449,20 @@ int main (void)
     ssd_disp_clear();
     x = 0;
     y = 0;
-    for(j='A';j<'Z';j++) {
+    for(j='A';j<'[';j++) {
       ssd_set_xy(x,y);
       ssd_putc(j);
       x += ssd_font->x + ssd_font->hspace;
+      if ((x + ssd_font->x) > ssd_width()) {
+	x = 0;
+	if ((y + ssd_font->y) > ssd_height()) {
+	  y = 0;
+	  ssd_disp_update(disp);
+	  getc(stdin);
+	  if (j!=ssd_font->last) ssd_disp_clear();
+	}
+	y += 1;
+      }
       y += 1;
     }
     ssd_disp_update(disp);
