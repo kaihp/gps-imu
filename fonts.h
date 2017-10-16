@@ -2,6 +2,7 @@
 #define __FONTS_H__
 
 #include <stdint.h>
+#include <stdio.h>
 
 /*
  * name:   font name (not used)
@@ -33,16 +34,25 @@
  * SSD1306 controllers display buffer (the GDDRAM).
  */
 
+enum ftypes {
+  FIXED    = 0, /* fixed-spacing */
+  VARIABLE = 1  /* proportional-spacing */
+};
+
 typedef struct font {
   char *name; /* font name */
-  int x, y; /* size of each glyph in px */
+  enum ftypes ftype;
+  int x, y;           /* size of each glyph in px */
   int hspace, vspace; /* recommended spacing when placing two glyphs next to each other */
-  int first, last; /* ASCII code of first & last glyph in glyph array */
-  uint8_t *glyphs; /* ptr to arr of size (last-first+1)*x*((y+7)>>3) */
+  int first, last;    /* ASCII code of first & last glyph in glyph array */
+  uint8_t *offset;    /* Prop font: start of glyph */
+  uint8_t *width;     /* Prop font: width of glyph */
+  uint8_t *glyphs;    /* ptr to arr of vscans size (last-first+1)*x*((y+7)>>3) */
 } font_t;
 
-extern const font_t font_7x5;
-extern const font_t font_8x8;
-extern const font_t font_21x14;
+extern const font_t fixed_7x5;
+extern const font_t fixed_8x8;
+extern const font_t fixed_21x14;
+extern const font_t font_21px;
 
 #endif

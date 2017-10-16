@@ -15,6 +15,7 @@
 
 /* SSD1306 I2C address */
 #define RA_SSD1306       (0x3C)
+#define RA_SSD1309       (0x3C)
 
 #define COLOR_BLK (0)
 #define COLOR_WHT (1)
@@ -34,7 +35,7 @@ void ssd_rect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, int color);
 void ssd_set_xy(uint8_t x, uint8_t y);
 void ssd_set_font(const font_t *font);
 void ssd_putc(char ch);
-void ssd_puts(const char *str);
+int  ssd_puts(const char *str);
 
 #endif
 

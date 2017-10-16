@@ -321,35 +321,39 @@ void ssd_putc(char ch)
   uint64_t vmask;
   uint64_t mask;
   uint8_t *glyphptr;
-  int x,y;
+  int x,y,xlast;
   int lsl;
+  int idx;
+  int c;
   if (ch<ssd_font->first || ch>ssd_font->last) {
     /* Character out of range - abort */
     return;
   }
   /* point to the first uint8_t of the chosen character */
-  int idx = (ch-ssd_font->first) * ssd_font->x * ((ssd_font->y+7) >> 3);
+  c = ch - ssd_font->first;
+  if(ssd_font->ftype == FIXED) {
+    idx   = c * ssd_font->x * ((ssd_font->y+7) >> 3);
+    xlast = ssd_font->x;
+  } else if(ssd_font->ftype == VARIABLE) {
+    idx   = ssd_font->index[c+0] * ((ssd_font->y+7) >> 3);
+    xlast = ssd_font->index[c+1] - ssd_font->index[c+0];
+  } else {
+    /* Unknown font type; abort */
+    return;
+  }
   glyphptr = ssd_font->glyphs+idx;
   lsl = ssd_y - ((8 - ssd_font->y % 8) % 8);
   mask = (~(~0ULL << ssd_font->y)) << ssd_y;
   /* For each column, assemble vscan, align it, and "print" it */
-  for(x=0;x<ssd_font->x;x++) {
+  for(x=0;x<xlast;x++) {
     vmask = mask;
     vscan = 0;
     /* assemble complete vertical scan */
     for(y=((ssd_font->y+7)>>3)-1;y>=0;y--) {
-      vscan = (vscan << 8) | glyphptr[x+y*ssd_font->x];
+      vscan = (vscan << 8) | glyphptr[x+y*xlast];
     }
     /* align vscan to match destination uint8_t's */
     vscan = (lsl>=0) ? vscan << lsl : vscan >> -lsl;
-#if 0
-    for(y=(ssd_font->y+ssd_y-1)>>3; y>=ssd_y>>3; y--) {
-      int idx = __width*y + ssd_x+x;
-      uint8_t tmp = gfxbuf[idx];
-      uint8_t t0 = tmp;
-      tmp &= ~vmask >> 8*y; /* set pixels in glyph area */
-      tmp |=  vscan >> 8*y; /* apply glyph */
-#else
     vmask >>= (ssd_y & ~0x7);
     vscan >>= (ssd_y & ~0x7);
     for(y=ssd_y>>3; y<=(ssd_font->y+ssd_y-1)>>3; y++) {
@@ -360,25 +364,59 @@ void ssd_putc(char ch)
       tmp |=  vscan; /* apply glyph */
       vmask >>= 8;
       vscan >>= 8;
-#endif
       gfxbuf[idx] = tmp;  /* writeback */
     }
   }
 }
 
-void ssd_puts(const char *str)
+/*
+ * ssd_puts(): C POSIX Library wannabee Returns the numbers of
+ * characters printed (ssd_puts() breaks when it cannot print the next
+ * complete character.
+ * Handles both fixed-pitch and variable-pitch (proportional) fonts.
+ * Updates the display (x,y) cursor so puts() can be called repeatedly
+ * and get the expected results.
+ */
+int ssd_puts(const char *str)
 {
-  unsigned char i=0;
-  while(str[i]) {
+  int i=0;
+  char j;
+  int  x_w;
+  while(j=str[i]) {
+    /* Determine if we can print the glyph here or need to move to next line */
+    if(ssd_font->ftype == FIXED) {
+      x_w = ssd_font->x;
+    } else if(ssd_font->ftype==VARIABLE) {
+      x_w = ssd_font->index[j+1-ssd_font->first] - ssd_font->index[j-ssd_font->first];
+    } else {
+      return(-1);
+    }
+    /* Height check */
+    if((ssd_y + ssd_font->y) > ssd_height()) {
+      break;
+    }
+    /* Width check */
+    if((ssd_x + x_w) > ssd_width()) {
+      /* If too wide, print glyph on next line (if possible) */
+      ssd_x = 0;
+      ssd_y += ssd_font->y + ssd_font->vspace;
+      if ((ssd_y + ssd_font->y) > ssd_height()) {
+	/* Out of display space; return number of chars printed */
+	return i;
+      }
+    }
+    /* Both W & H checks fall-through to print char here */
     ssd_putc(str[i]);
-    ssd_x += ssd_font->x + ssd_font->hspace;
-    if ((ssd_x + ssd_font->x) > ssd_width()) {
+
+    /* Move cursor */
+    ssd_x += x_w + ssd_font->hspace;
+    if ((ssd_x + x_w) > ssd_width()) {
       ssd_x = 0;
       ssd_y += ssd_font->y + ssd_font->vspace;
     }
     i++;
-    if((ssd_y+ ssd_font->y) > ssd_height()) break;
   }
+  return i;
 }
 
 void ssd130x_scroll_h(int fd, int dir)
@@ -408,30 +446,40 @@ int main (void)
   ssd130x_init(disp,128,32);
   ssd_disp_update(disp);
 
-#if 0
+#if 2
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
-  const font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
-  
+  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
   for(i=0;i<sizeof(tests) / sizeof(font_t *);i++) {
+    int ch_x;
     ssd_set_font(tests[i]);
     ssd_disp_clear();
     x=0;
     y=0;
     for(j=ssd_font->first;j<=ssd_font->last;j++) {
       ssd_set_xy(x,y);
-      ssd_putc(j);
-      x += ssd_font->x + ssd_font->hspace;
-      if ((x + ssd_font->x) > ssd_width()) {
+      if(ssd_font->ftype == FIXED) {
+	ch_x = ssd_font->x;
+	x += ch_x + ssd_font->hspace;
+      } else if(ssd_font->ftype==VARIABLE) {
+	ch_x = ssd_font->index[j+1-ssd_font->first] - ssd_font->index[j-ssd_font->first];
+	x += ch_x + ssd_font->hspace;
+      } else {
+	return(-1);
+      }
+      if ((x + ch_x) > ssd_width()) {
 	x = 0;
 	y += ssd_font->y + ssd_font->vspace;
 	if ((y + ssd_font->y) > ssd_height()) {
+	  ssd_putc(j);
 	  ssd_disp_update(disp);
 	  getc(stdin);
 	  if (j!=ssd_font->last) ssd_disp_clear();
 	  y = 0;
 	}
+      } else {
+	ssd_putc(j);
       }
     } /* for(j) */
     ssd_disp_update(disp);
@@ -439,11 +487,11 @@ int main (void)
   }
 #endif
 
-#if 1
+#if 0
   /*
    * Test that we can print glyphs in any row (x)
    */
-  const font_t *tests[] = {&font_7x5, &font_8x8, &font_21x14};
+  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14};
   for(i=0;i<sizeof(tests)/sizeof(font_t *);i++) {
     ssd_set_font(tests[i]);
     ssd_disp_clear();
@@ -469,17 +517,89 @@ int main (void)
     getc(stdin);
   }
 #endif
-      
+
+#if 0
+  /*
+   * Test printing two strings with puts() - should be indistinguishable from a single puts()
+   */
+  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
+  const char str1[] = "@ABC";
+  const char str2[] = "DEF";
+  for(i=0;i<sizeof(tests)/sizeof(font_t *);i++) {
+    ssd_disp_clear();
+    ssd_set_font(tests[i]);
+    ssd_disp_clear();
+    ssd_set_xy(0,0);
+    ssd_puts(str1);
+    ssd_puts(str2);
+    ssd_disp_update(disp);
+    getc(stdin);
+  }
+#endif
+  
 #if 0
   /* ssd_rect() testing */
   ssd_set_xy(0,0);
-  ssd_set_font(&font_7x5);
+  ssd_set_font(&fixed_7x5);
   char str[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
   ssd_puts(str);
   ssd_disp_update(disp);
   getc(stdin);
   ssd_rect(0, 0,127,31,COLOR_INV);
   ssd_rect(0, 7,127, 8,COLOR_BLK);
+  ssd_disp_update(disp);
+#endif
+
+#if 1
+  /* GPS laptimer normal view */
+
+  char status[33];
+  char min[3], sec[3], csec[3];
+  int laptime;
+  int ngps, spd, hh, mm, rec;
+  laptime = (1 * 100 + 8)*100 + 86;
+  ngps = 0; spd=0; hh=12; mm=42; rec=0;
+
+  ssd_disp_clear();
+  ssd_set_font(&fixed_7x5);
+  /* Number of Satellites */
+  ssd_set_xy(5,0);
+  sprintf(status, "S%02d", ngps);
+  ssd_puts(status);
+  /* Speed in mph/kph */
+  ssd_set_xy((5+6+6)+18,0);
+  sprintf(status, "%03d", spd);
+  ssd_puts(status);
+  /* Time of Day */
+  ssd_set_xy((5+6+6)+(18+18)+18,0);
+  sprintf(status, "%02d:%02d", hh, mm);
+  ssd_puts(status);
+  /* Recording status (Circle/Dot) */
+  ssd_set_font(&fixed_8x8);
+  ssd_set_xy(115,0);
+  ssd_putc((rec)? 131 : 130);
+#if 0
+  /* Separators MM:SS.SS */
+  sprintf(min,  "%02d", laptime/10000);
+  sprintf(sec,  "%02d", (laptime/100) % 100);
+  sprintf(csec, "%02d", laptime % 100);
+  ssd_set_font(&fixed_21x14);
+  ssd_set_xy(5+14+4+14+4-4,9);
+  ssd_putc(':');
+  ssd_set_xy(5+14+4+14+4+3+4+14+4+14+4-4,9);
+  ssd_putc('.');
+  ssd_set_xy(5,9);
+  /* Print laptime MM:SS.CC */
+  ssd_puts(min);
+  ssd_set_xy(5+14+4+14+4+3+4,9);
+  ssd_puts(sec);
+  ssd_set_xy(5+14+4+14+4+3+4+14+4+14+4+3+4,9);
+  ssd_puts(csec);
+#endif
+  sprintf(status, "%02d:%02d.%02d", laptime/10000, (laptime/100) % 100, laptime % 100);
+  ssd_set_font(&font_21px);
+  ssd_set_xy(5,9);
+  ssd_puts(status);
   ssd_disp_update(disp);
 #endif
 }
