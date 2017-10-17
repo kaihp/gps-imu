@@ -9,5 +9,5 @@ imu-test4.o: imu-test4.c mpu9250_regs.h bmp280_regs.h i2c.h
 
 imu-test4: imu-test4.o i2c.o
 
-ssd-test1: ssd1306.o i2c.o fixed_8x8.o fixed_7x5.o fixed_21x14.o font_21.o
+ssd-test1: ssd1306.o i2c.o font_8x8.o font_7x5.o font_21x14.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LOADLIBES) $(LDLIBS)

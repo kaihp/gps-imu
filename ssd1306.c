@@ -19,7 +19,7 @@
 #include "ssd1306.h"
 #include "ssd1306_regs.h"
 
-#define VERSION "0.0.3"
+#define VERSION "0.0.4"
 
 static int __width, __height;
 uint8_t *gfxbuf = NULL; /* Graphics buffer */
@@ -321,7 +321,7 @@ void ssd_putc(char ch)
   uint64_t vmask;
   uint64_t mask;
   uint8_t *glyphptr;
-  int x,y,xlast;
+  int x,y,x_s,x_w;
   int lsl;
   int idx;
   int c;
@@ -333,10 +333,12 @@ void ssd_putc(char ch)
   c = ch - ssd_font->first;
   if(ssd_font->ftype == FIXED) {
     idx   = c * ssd_font->x * ((ssd_font->y+7) >> 3);
-    xlast = ssd_font->x;
+    x_s = 0;
+    x_w = ssd_font->x;
   } else if(ssd_font->ftype == VARIABLE) {
-    idx   = ssd_font->index[c+0] * ((ssd_font->y+7) >> 3);
-    xlast = ssd_font->index[c+1] - ssd_font->index[c+0];
+    idx   = c * ssd_font->x * ((ssd_font->y+7) >> 3);
+    x_s = ssd_font->offset[c];
+    x_w = ssd_font->width[c];
   } else {
     /* Unknown font type; abort */
     return;
@@ -345,12 +347,12 @@ void ssd_putc(char ch)
   lsl = ssd_y - ((8 - ssd_font->y % 8) % 8);
   mask = (~(~0ULL << ssd_font->y)) << ssd_y;
   /* For each column, assemble vscan, align it, and "print" it */
-  for(x=0;x<xlast;x++) {
+  for(x=0;x<x_w;x++) {
     vmask = mask;
     vscan = 0;
     /* assemble complete vertical scan */
     for(y=((ssd_font->y+7)>>3)-1;y>=0;y--) {
-      vscan = (vscan << 8) | glyphptr[x+y*xlast];
+      vscan = (vscan << 8) | glyphptr[x+x_s+y*ssd_font->x];
     }
     /* align vscan to match destination uint8_t's */
     vscan = (lsl>=0) ? vscan << lsl : vscan >> -lsl;
@@ -370,9 +372,11 @@ void ssd_putc(char ch)
 }
 
 /*
- * ssd_puts(): C POSIX Library wannabee Returns the numbers of
- * characters printed (ssd_puts() breaks when it cannot print the next
- * complete character.
+ * ssd_puts(): C POSIX Library wannabe
+ *
+ * Returns the numbers of characters printed (ssd_puts() breaks when
+ * it cannot print the next complete character.
+ *
  * Handles both fixed-pitch and variable-pitch (proportional) fonts.
  * Updates the display (x,y) cursor so puts() can be called repeatedly
  * and get the expected results.
@@ -387,7 +391,7 @@ int ssd_puts(const char *str)
     if(ssd_font->ftype == FIXED) {
       x_w = ssd_font->x;
     } else if(ssd_font->ftype==VARIABLE) {
-      x_w = ssd_font->index[j+1-ssd_font->first] - ssd_font->index[j-ssd_font->first];
+      x_w = ssd_font->width[j-ssd_font->first];
     } else {
       return(-1);
     }
@@ -446,44 +450,36 @@ int main (void)
   ssd130x_init(disp,128,32);
   ssd_disp_update(disp);
 
-#if 2
+#if 1
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
-  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
-  for(i=0;i<sizeof(tests) / sizeof(font_t *);i++) {
+  const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
+  for(i=0;i<sizeof(tests1) / sizeof(font_t *);i++) {
+    char str[260];
+    int len, idx, tmp;
     int ch_x;
-    ssd_set_font(tests[i]);
-    ssd_disp_clear();
+    ssd_set_font(tests1[i]);
     x=0;
     y=0;
+    len = ssd_font->last-ssd_font->first+1;
+    idx = 0;
+    tmp = 0;
     for(j=ssd_font->first;j<=ssd_font->last;j++) {
-      ssd_set_xy(x,y);
-      if(ssd_font->ftype == FIXED) {
-	ch_x = ssd_font->x;
-	x += ch_x + ssd_font->hspace;
-      } else if(ssd_font->ftype==VARIABLE) {
-	ch_x = ssd_font->index[j+1-ssd_font->first] - ssd_font->index[j-ssd_font->first];
-	x += ch_x + ssd_font->hspace;
-      } else {
-	return(-1);
-      }
-      if ((x + ch_x) > ssd_width()) {
-	x = 0;
-	y += ssd_font->y + ssd_font->vspace;
-	if ((y + ssd_font->y) > ssd_height()) {
-	  ssd_putc(j);
-	  ssd_disp_update(disp);
-	  getc(stdin);
-	  if (j!=ssd_font->last) ssd_disp_clear();
-	  y = 0;
-	}
-      } else {
-	ssd_putc(j);
-      }
-    } /* for(j) */
-    ssd_disp_update(disp);
-    if (y||x) getc(stdin);
+      str[idx++] = j;
+    }
+    str[idx] = 0;
+    if (0==ssd_font->first) str[0]=' ';
+    idx = 0;
+    while(len>0) {
+      ssd_disp_clear();
+      ssd_set_xy(0,0);
+      tmp = ssd_puts(&str[idx]);
+      idx += tmp;
+      len -= tmp;
+      ssd_disp_update(disp);
+      getc(stdin);
+    }
   }
 #endif
 
@@ -491,9 +487,9 @@ int main (void)
   /*
    * Test that we can print glyphs in any row (x)
    */
-  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14};
-  for(i=0;i<sizeof(tests)/sizeof(font_t *);i++) {
-    ssd_set_font(tests[i]);
+  const font_t *tests2[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14};
+  for(i=0;i<sizeof(tests2)/sizeof(font_t *);i++) {
+    ssd_set_font(tests2[i]);
     ssd_disp_clear();
     x = 0;
     y = 0;
@@ -518,16 +514,16 @@ int main (void)
   }
 #endif
 
-#if 0
+#if 1
   /*
    * Test printing two strings with puts() - should be indistinguishable from a single puts()
    */
-  const font_t *tests[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
+  const font_t *tests3[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
   const char str1[] = "@ABC";
   const char str2[] = "DEF";
-  for(i=0;i<sizeof(tests)/sizeof(font_t *);i++) {
+  for(i=0;i<sizeof(tests3)/sizeof(font_t *);i++) {
     ssd_disp_clear();
-    ssd_set_font(tests[i]);
+    ssd_set_font(tests3[i]);
     ssd_disp_clear();
     ssd_set_xy(0,0);
     ssd_puts(str1);

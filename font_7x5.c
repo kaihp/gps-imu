@@ -124,6 +124,7 @@ const font_t fixed_7x5 = {
   .vspace = 1,
   .first = 32,
   .last = 131,
-  .index = NULL,
+  .offset = NULL,
+  .width  = NULL,
   .glyphs =  (uint8_t *) &glyph7x5
 };

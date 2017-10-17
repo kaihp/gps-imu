@@ -285,6 +285,7 @@ const font_t fixed_8x8 = {
   .vspace = 0,
   .first = 0,
   .last = 255,
-  .index = NULL,
+  .offset = NULL,
+  .width  = NULL,
   .glyphs =  (uint8_t *) &glyph8x8
 };
