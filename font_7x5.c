@@ -9,7 +9,7 @@
 #include "fonts.h"
 
 static const uint8_t glyph7x5[] = {
-  /* 32 - 63 */
+  /*  32 -  63 */
   0x00,0x00,0x00,0x00,0x00,
   0x00,0xBE,0x00,0x00,0x00,
   0x00,0x0E,0x00,0x0E,0x00,
@@ -42,7 +42,7 @@ static const uint8_t glyph7x5[] = {
   0x28,0x28,0x28,0x28,0x28,
   0x82,0x44,0x28,0x10,0x00,
   0x04,0x02,0xA2,0x12,0x0C,
-  /* 64 - 95 */
+  /*  64 -  95 */
   0x64,0x92,0xF2,0x82,0x7C,
   0xFC,0x12,0x12,0x12,0xFC,
   0xFE,0x92,0x92,0x92,0x6C,
@@ -75,7 +75,7 @@ static const uint8_t glyph7x5[] = {
   0x82,0x82,0xFE,0x00,0x00,
   0x08,0x04,0x02,0x04,0x08,
   0x80,0x80,0x80,0x80,0x80,
-  /* 96 - 127 */
+  /*  96 - 127 */
   0x02,0x04,0x08,0x00,0x00,
   0x40,0xA8,0xA8,0xA8,0xF0,
   0xFE,0x90,0x88,0x88,0x70,
@@ -108,23 +108,65 @@ static const uint8_t glyph7x5[] = {
   0x82,0x6C,0x10,0x00,0x00,
   0x04,0x02,0x02,0x04,0x02,
   0x04,0x0A,0x0A,0x04,0x00,
-  /* 128-129: non-ASCII arrows */
+  /* 128 - 131 */
   0x40,0x60,0xFE,0x60,0x40, /* Arrow-down */
   0x08,0x0C,0xFE,0x0C,0x08, /* Arrow-up   */
   0x38,0x44,0x44,0x44,0x38, /* Circle     */
   0x38,0x7C,0x7C,0x7C,0x38, /* Disc       */
 };
 
+static const uint8_t offset[] = {
+  /*  32 -  63 */
+   0,  1,  1,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,
+   0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  2,  2,  0,  0,  0,  0,
+  /*  64 -  95 */
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  /*  96 - 127 */
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,
+   0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,
+  /* 128 - 131 */
+   0,  0,  0,  0,
+};
+
+static const uint8_t width[] = {
+  /*  32 -  63 */
+   5,  1,  3,  5,  5,  5,  5,  2,  3,  3,  5,  5,  2,  5,  2,  5,
+   5,  3,  5,  5,  5,  5,  5,  5,  5,  5,  2,  2,  4,  5,  4,  5,
+  /*  64 -  95 */
+   5,  5,  5,  5,  5,  5,  5,  5,  5,  3,  5,  5,  5,  5,  5,  5,
+   5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  3,  5,  3,  5,  5,
+  /*  96 - 127 */
+   3,  5,  5,  4,  5,  5,  4,  5,  5,  2,  3,  4,  3,  5,  4,  4,
+   4,  4,  3,  4,  3,  4,  5,  5,  5,  4,  5,  3,  1,  3,  5,  4,
+  /* 128 - 131 */
+   5,  5,  5,  5,
+};
+
 const font_t fixed_7x5 = {
-  .name = "fixed7x5",
-  .ftype = FIXED,
-  .x = 5,
-  .y = 7,
+  .name   = "fixed7x5",
+  .ftype  = FIXED,
+  .x      = 5,
+  .y      = 7,
   .hspace = 1,
   .vspace = 1,
-  .first = 32,
-  .last = 131,
+  .first  = 32,
+  .last   = 131,
   .offset = NULL,
   .width  = NULL,
-  .glyphs =  (uint8_t *) &glyph7x5
+  .glyphs = (uint8_t *) &glyph7x5
+};
+
+const font_t font_7px = {
+  .name   = "Font7px",
+  .ftype  = VARIABLE,
+  .x      = 5,
+  .y      = 7,
+  .hspace = 1,
+  .vspace = 1,
+  .first  = 32,
+  .last   = 131,
+  .offset = (uint8_t *) &offset,
+  .width  = (uint8_t *) &width,
+  .glyphs = (uint8_t *) &glyph7x5
 };

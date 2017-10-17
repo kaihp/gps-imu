@@ -51,7 +51,9 @@ typedef struct font {
 } font_t;
 
 extern const font_t fixed_7x5;
+extern const font_t font_7px;
 extern const font_t fixed_8x8;
+extern const font_t font_8px;
 extern const font_t fixed_21x14;
 extern const font_t font_21px;
 

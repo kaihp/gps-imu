@@ -454,7 +454,7 @@ int main (void)
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
-  const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_21px};
+  const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_7px, &font_8px, &font_21px};
   for(i=0;i<sizeof(tests1) / sizeof(font_t *);i++) {
     char str[260];
     int len, idx, tmp;
@@ -514,7 +514,7 @@ int main (void)
   }
 #endif
 
-#if 1
+#if 0
   /*
    * Test printing two strings with puts() - should be indistinguishable from a single puts()
    */
@@ -546,7 +546,7 @@ int main (void)
   ssd_disp_update(disp);
 #endif
 
-#if 1
+#if 0
   /* GPS laptimer normal view */
 
   char status[33];
