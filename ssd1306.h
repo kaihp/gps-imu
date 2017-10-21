@@ -36,6 +36,7 @@ void ssd_set_xy(uint8_t x, uint8_t y);
 void ssd_set_font(const font_t *font);
 void ssd_putc(char ch);
 int  ssd_puts(const char *str);
+int  ssd_strlen(const char *str);
 
 #endif
 

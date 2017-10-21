@@ -89,15 +89,15 @@ void ssd130x_init(int fd, int w, int h)
  * <https://github.com/galpavlin/STM32-SSD1306/128x32/src/oled.c>:
  *  1) Set Display OFF (0xAE)
  *  2) Set Display Clock (0xD5, 0x80)
- *  3) Set MUX ratio (0xA8, 0x1F) [x32, x64=0x3F]
+ *  3) Set MUX ratio (0xA8, h-1) [x32=0x1F, x64=0x3F]
  *  4) Set Display offset (0xD3, 0x00)
  *  5) Set Display Start Line (0x40)
  *  6) Set Charge-pump Internal (0x8D, 0x14)
  *  7) Addressing Mode = PAGE (0x20)
  *  8) Set Segment re-map (0xA1)
  *  9) Set COM Output Scan Dir reversed (0xC8)
- * 10) Set COM pin HW config (0xDA, 0x02)
- * 11) Set Contrast Control (0x81, 0x8F)
+ * 10) Set COM pin HW config (0xDA, 0x02/0x12) [x32=0x02, x64=0x12]
+ * 11) Set Contrast Control (0x81, 0x8F) [x32=0x8F, x64=0xCF]
  * 12) Set precharge period (0xD9, 0xF1)
  * 13) Set VCOMH deselect level (0xDB, 0x40)
  * 14) Set Entire display on (0xA4)
@@ -108,15 +108,15 @@ void ssd130x_init(int fd, int w, int h)
  */
   ssd_cmd1(fd, SSD_DISP_SLEEP);        /* 0xAE: DISP_ENTIRE_OFF */
   ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /* 0xD5: DCLK_DIV = 0x80 */
-  ssd_cmd2(fd, SSD_MUX_RATIO, 0x1F);   /* 0xA8: MUX_RATIO = 0x1F (x32 display) */
+  ssd_cmd2(fd, SSD_MUX_RATIO, h-1);    /* 0xA8: MUX_RATIO = h-1 (x32=0x1F, x64=0x3F) */
   ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /* 0xD3: DISP_OFFSET = 0 */
   ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /* 0x40: DISP_STARTLINE = 0 */
   ssd_cmd2(fd, SSD_CHARGEPUMP, 0x14);  /* 0x8D: CHARGEPUMP = 0x14 */
   ssd_cmd2(fd, SSD_ADDR_MODE, 0);      /* 0x20: ADDR_MODE = 0h */
   ssd_cmd1(fd, SSD_SEG_REMAP127);      /* 0xA1: SEG_REMAP = Y */
   ssd_cmd1(fd, SSD_COM_SCAN_REV);      /* 0xC8: COM_SCAN = Reverse (7..0) */
-  ssd_cmd2(fd, SSD_COM_HW_CFG, 0x02);  /* 0xDA: COM_HW PINS = 0x02 */
-  ssd_cmd2(fd, SSD_CONTRAST, 0x8F);    /* 0x81: CONTRAST = 0x8F */
+  ssd_cmd2(fd, SSD_COM_HW_CFG, (h==32) ? 0x02 : 0x12); /* 0xDA: COM_HW PINS = 0x02 / 0x12 */
+  ssd_cmd2(fd, SSD_CONTRAST, (h==32) ? 0x8F : 0xCF);   /* 0x81: CONTRAST = 0x8F */
   ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 0xD9: PRECHARGE = 0xF1 */
   ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 0xDB: VCOMH LEVEL = 0x40 */
   ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
@@ -423,6 +423,32 @@ int ssd_puts(const char *str)
   return i;
 }
 
+/* 
+ * ssd_strlen(): Compute length of string in pixels
+ * Assumes that string isn't wrapped.
+ */
+int ssd_strlen(const char *str)
+{
+  int i=0;
+  int px=0;
+  char ch;
+  while(ch=str[i]) {
+    if(ch==0) {
+      return px;
+    }
+    if(ssd_font->ftype==FIXED) {
+      px += ssd_font->x;
+    } else if(ssd_font->ftype==VARIABLE) {
+      px += ssd_font->width[ch-ssd_font->first];
+    } else {
+      return -1;
+    }
+    if(str[i+1]!=0) px += ssd_font->hspace;
+    i++;
+  }
+  return px;
+}
+
 void ssd130x_scroll_h(int fd, int dir)
 {
   if(dir==0) {
@@ -438,7 +464,7 @@ void ssd130x_scroll_h(int fd, int dir)
   }
 }
  
-int main (void)
+int main (int argc, char **argv)
 {
   int i,j;
   int x,y;
@@ -447,10 +473,11 @@ int main (void)
     puts("Failed to setup OLED display\n");
     exit(-1);
   }
-  ssd130x_init(disp,128,32);
+  printf("Initializing 128 x %2d display",(argc>1)?64:32);
+  ssd130x_init(disp,128,(argc>1)?64:32);
   ssd_disp_update(disp);
 
-#if 1
+#if 0
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
@@ -493,9 +520,9 @@ int main (void)
     ssd_disp_clear();
     x = 0;
     y = 0;
-    for(j='A';j<'[';j++) {
+    for(j=0;j<ssd_height();j++) {
       ssd_set_xy(x,y);
-      ssd_putc(j);
+      ssd_putc(j+'A');
       x += ssd_font->x + ssd_font->hspace;
       if ((x + ssd_font->x) > ssd_width()) {
 	x = 0;
@@ -546,9 +573,8 @@ int main (void)
   ssd_disp_update(disp);
 #endif
 
-#if 0
+#if 1
   /* GPS laptimer normal view */
-
   char status[33];
   char min[3], sec[3], csec[3];
   int laptime;
@@ -574,27 +600,14 @@ int main (void)
   ssd_set_font(&fixed_8x8);
   ssd_set_xy(115,0);
   ssd_putc((rec)? 131 : 130);
-#if 0
-  /* Separators MM:SS.SS */
-  sprintf(min,  "%02d", laptime/10000);
-  sprintf(sec,  "%02d", (laptime/100) % 100);
-  sprintf(csec, "%02d", laptime % 100);
-  ssd_set_font(&fixed_21x14);
-  ssd_set_xy(5+14+4+14+4-4,9);
-  ssd_putc(':');
-  ssd_set_xy(5+14+4+14+4+3+4+14+4+14+4-4,9);
-  ssd_putc('.');
-  ssd_set_xy(5,9);
-  /* Print laptime MM:SS.CC */
-  ssd_puts(min);
-  ssd_set_xy(5+14+4+14+4+3+4,9);
-  ssd_puts(sec);
-  ssd_set_xy(5+14+4+14+4+3+4+14+4+14+4+3+4,9);
-  ssd_puts(csec);
-#endif
-  sprintf(status, "%02d:%02d.%02d", laptime/10000, (laptime/100) % 100, laptime % 100);
+  /* Laptime MM:SS.SS */
   ssd_set_font(&font_21px);
   ssd_set_xy(5,9);
+  sprintf(status, "%02d:%02d.%02d", laptime/10000, (laptime/100) % 100, laptime % 100);
+  ssd_puts(status);
+  sprintf(status, "%c%02d.%02d", '-', 1, 14);
+  int len = ssd_strlen(status);
+  ssd_set_xy(ssd_width()-5-len,9+4+21);
   ssd_puts(status);
   ssd_disp_update(disp);
 #endif
