@@ -444,8 +444,8 @@ sub write_font_structs {
 	printf($fh $sp . ".width  = NULL,\n");
 	printf($fh $sp . ".glyphs = (uint8_t *) &glyphs\n};\n\n");
 	# Proportional
-	printf($fh "const font_t font_%dx%d = \{\n", $font->{'y'},$font->{'x'});
-	printf($fh $sp . ".name   = \"font%dx%d\",\n", $font->{'y'},$font->{'x'});
+	printf($fh "const font_t font_%dpx = \{\n", $font->{'y'});
+	printf($fh $sp . ".name   = \"font_%dpx\",\n", $font->{'y'});
 	printf($fh $sp . ".ftype  = VARIABLE,\n");
 	printf($fh $sp . ".x      = %d,\n", $font->{'x'});
 	printf($fh $sp . ".y      = %d,\n", $font->{'y'});

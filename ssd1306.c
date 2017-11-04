@@ -473,7 +473,7 @@ int main (int argc, char **argv)
     puts("Failed to setup OLED display\n");
     exit(-1);
   }
-  printf("Initializing 128 x %2d display",(argc>1)?64:32);
+  printf("Initializing 128 x %2d display\n",(argc>1)?64:32);
   ssd130x_init(disp,128,(argc>1)?64:32);
   ssd_disp_update(disp);
 
@@ -482,6 +482,7 @@ int main (int argc, char **argv)
    * characters
    */
   const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_7px, &font_8px, &font_21px};
+  const font_t *tests1[] = {&fixed_21x14};
   for(i=0;i<sizeof(tests1) / sizeof(font_t *);i++) {
     char str[260];
     int len, idx, tmp;
@@ -499,6 +500,41 @@ int main (int argc, char **argv)
     if (0==ssd_font->first) str[0]=' ';
     idx = 0;
     while(len>0) {
+      ssd_disp_clear();
+      ssd_set_xy(0,0);
+      tmp = ssd_puts(&str[idx]);
+      idx += tmp;
+      len -= tmp;
+      ssd_disp_update(disp);
+      getc(stdin);
+    }
+  }
+#endif
+
+#if 1
+  /* Font/glyph printing tests with all fonts and all implemented
+   * characters
+   */
+  const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_7px, &font_8px, &font_21px};
+  for(i=0;i<sizeof(tests1) / sizeof(font_t *);i++) {
+    char str[260];
+    int len, idx, tmp;
+    int ch_x;
+    ssd_set_font(tests1[i]);
+    printf("Setting font %s\n",tests1[i]->name);
+    x=0;
+    y=0;
+    len = ssd_font->last-ssd_font->first+1;
+    idx = 0;
+    tmp = 0;
+    for(j=ssd_font->first;j<=ssd_font->last;j++) {
+      str[idx++] = j;
+    }
+    str[idx] = 0;
+    if (0==ssd_font->first) str[0]=' ';
+    idx = 0;
+    while(len>0) {
+      printf("idx=%3d\r",idx);
       ssd_disp_clear();
       ssd_set_xy(0,0);
       tmp = ssd_puts(&str[idx]);
@@ -573,7 +609,7 @@ int main (int argc, char **argv)
   ssd_disp_update(disp);
 #endif
 
-#if 1
+#if 0
   /* GPS laptimer normal view */
   char status[33];
   char min[3], sec[3], csec[3];
