@@ -1,0 +1,694 @@
+#!/usr/bin/perl -w
+
+#fontcompile: read a file describing font glyphs (chars) and convert them into C-structure(s)
+#Usage : fontcompile [options] infile outfile
+# -h | --help      : show help message (this)
+# -V | --version   : print version number and exit
+# -v | --verbose   : Increase runtime verbosity
+# -q | --quiet     : Decrease runtime verbosity
+# -d | --dir=<v|h> : Glyph direction (vertical/horizontal)
+# -x | --x=<num>   : Horizontal (x direction) size of glyph in pixels
+# -y | --y=<num>   : Vertical (y direction) size of glyph in pixels
+# -n | --dry-run   : Read input file, report warnings/errors, but don't generate output
+#      --man       : Print embedded manual page (Pod::Usage)
+
+use strict;
+use Data::Dumper;
+use File::Basename;
+use Getopt::Long;
+use Pod::Usage;
+
+my $VERSION     = "2017-10-24";
+my $help        = 0;
+my $manual      = 0;
+my $verbose_lvl = 0;
+my $version     = 0;
+my $x_sz        = 0;
+my $y_sz        = 0;
+my $dry_run     = 0;
+my $direction   = 'v'; # Default is vertical, for SSD1306/1309 compability
+my $reportFH    = *STDERR;
+my $indent_sz   = 2;
+my $zero_chars  = ",_\.\-"; # Careful with '.' and '-' - Perl likes to interpret them
+my $one_chars   = "#*¤X";
+my $comment     = "//";
+my $infile;
+my $outfile;
+
+sub print_help {
+	print($reportFH "Usage fontcompile [options] infile outfile
+Options:
+   -h | --help      : show help message (this)
+   -v | --version   : print version number and exit
+   -V | --verbose   : Increase runtime verbosity
+   -q | --quiet     : Decrease runtime verbosity
+   -n | --dry-run   : Read input file, report warnings/errors, but don't generate output
+   -d | --dir=<v|h> : Glyph direction (vertical/horizontal). Vertical is default.
+   -x | --x=<num>   : Horizontal (x direction) size of glyph in pixels
+   -y | --y=<num>   : Vertical (y direction) size of glyph in pixels
+        --man       : Print embedded manual page (Pod::Usage)\n");
+	exit(0);
+}
+
+### Various functions of general/global use ###
+sub assert {
+  my $expr = shift;
+  my $text = shift;
+  unless ($expr == 1) {
+    print($reportFH "ASSERTion failure: $text\n");
+    exit(-2);
+  }
+}
+
+sub error {
+  my $expr = shift;
+  my $text = shift;
+  unless ($expr == 1) {
+    print($reportFH "ERROR: $text\n");
+    exit(-1);
+  }
+}
+
+sub warning {
+  my $expr = shift;
+  my $text = shift;
+  print($reportFH "WARNING: $text\n") if (($verbose_lvl>0) && ($expr != 0));
+}
+
+sub note {
+  my $text = shift;
+  print($reportFH "NOTE: $text\n") if ($verbose_lvl>1);
+}
+
+sub report {
+  my $text = shift;
+  print($reportFH "$text\n") if ($verbose_lvl>0);
+}
+
+sub debug {
+  my $level = shift;
+  my $text = shift;
+  print($reportFH "DEBUG: $text\n") if ($verbose_lvl>$level);
+}
+
+#################### Read & Parse fontfile ####################
+
+sub xlate {
+	my $input = shift;
+	my $one  = "1";
+	my $zero = "0";
+	$input =~ s/[$one_chars]/$one/g;
+	$input =~ s/[$zero_chars]/$zero/g;
+	return $input;
+}
+
+sub offset {
+	my $mask = shift;
+	my $tmp = index($mask,'1',0);
+	return ($tmp==-1) ? 0 : $tmp;
+}
+
+sub width {
+	my $mask = shift;
+	my $len = length($mask);
+	my $first = offset($mask);
+	my $tmp = reverse($mask);
+	my $idx = index($tmp,'1',0);
+	return ($idx==-1) ? $len : ($len-$idx)-$first;
+}
+
+sub print_glyph_if_debug {
+	my $lvl = shift;
+	my $i = shift;
+	my $j = shift;
+	my $glyphref = shift;
+	my ($x, $y);
+	for ($x=0;$x<$i;$x++) {
+		my $str = "";
+		for ($y=0;$y<$j;$y++) {
+			$str .= ' ' . $glyphref->[$x][$y];
+		}
+		debug($lvl,"scan: $str");
+	}
+}
+
+sub	glyphs_to_pixels {
+	my $font   = shift;
+	my $glyph0 = shift;
+	my $rows  = shift;
+	my $nglyph = shift;
+	my $inref = shift;
+	my $cols = length($inref->[0][0]);
+	my ($g, $c, $r);
+	assert($font->{'dir'} eq 'v'); # We don't support horizontal glyph direction yet.
+	debug(4,"g2p(): g=$glyph0, n=$nglyph rows=$rows");
+	# for each glyphs in array:
+	#   for each row:
+  #     for each column:
+	#       for each uint8:
+	#         assemble & store uint8
+	#   compute offset & width
+	for($g=0;$g<$nglyph;$g++) { # foreach glyph
+		my $i = $rows-1;
+		my $mask = 0;
+		for($c=0;$c<$cols;$c++) { # foreach col in glyph
+			my $u8 = 0;
+			my $cnt = 7;
+			my $rowidx = (($rows+7)>>3)-1;
+			for($r=$rows-1;$r>=0;$r--) { # foreach row in col in glyph
+				$u8 |= (('1'==substr($inref->[$r][$g],$c,1)) ? 1 : 0) << $cnt--;
+				if($cnt<0 || $r==0) {
+					debug(5,sprintf("font->{'glyphs'}[%d][%d][%d] = %02X", $glyph0+$g, $c, $rowidx,$u8));
+					$font->{'glyphs'}[$glyph0+$g][$c][$rowidx] = $u8;
+					$u8 = 0;
+					$cnt = 7;
+					$rowidx--;
+				}
+			} # for(r)
+		} # for(c)
+		# compute offset & width
+		$mask = '';
+		for($c=0;$c<$cols;$c++) { # foreach col in glyph
+			my $t = 0;
+			for($r=0;$r<($rows+7)>>3;$r++) {
+				my $bm = $font->{'glyphs'}[$glyph0+$g][$c][$r];
+				$t |= ($bm != 0) ? 1 : 0;
+			}
+			$mask .= $t;
+			debug(4,sprintf("glyph %d c=%d bm=0b%s",$glyph0+$g,$c,$mask));
+		}
+		my $o = offset($mask);
+		my $w  = width($mask);
+		debug(3,sprintf("glyph %d o=%d w=%d mask=0b%s",$glyph0+$g,$o,$w,$mask));
+		if ($mask == 0) {
+			$o = 0;
+			$w = $cols;
+		}
+		$font->{'offset'}[$glyph0+$g] = $o;
+		$font->{'width'}[$glyph0+$g] = $w;
+	} # for(g)
+	# debug printing
+	my $str;
+	for($g=$glyph0;$g<($glyph0+$nglyph);$g++) {
+		for($r=0;$r<($rows+7)>>3;$r++) {
+			$str = '';
+			for($c=0;$c<$cols;$c++) {
+				$str .= " " . sprintf("0x%02X",$font->{'glyphs'}[$g][$c][$r]);
+			}
+			debug(3,sprintf("glyph %d row %d : %s", $g, $r, $str));
+		}
+		debug(2,sprintf("glyph %d offset = %d, width = %d", $g, $font->{'offset'}[$g], $font->{'width'}[$g]));
+	}
+}
+
+# read_fontfile
+#   Parse input file for comments, variable settings, and glyphs
+# Inputs:
+#   $infile = input filename
+# Outputs:
+#   ref to populated hash
+#  %font = ('name' = "string", 'x' => 14, 'y' => 21, 'hspace' => 4,
+#           'vspace' => 4, 'first' => 0, 'last'   => 0,
+#           'offset' => (), 'width'  => (), 'glyphs' => ())
+sub read_fontfile {
+	my $filename = shift;
+	my $font;
+	$font = {'name'   => '',
+					 'x'      => $x_sz,
+					 'y'      => $y_sz,
+					 'first'  => 0,
+					 'last'   => 0,
+           'hspace' => 0,
+					 'vspace' => 0,
+					 'dir'    => $direction};
+
+	open(my $infile, '<', $filename) or die("Cannot open input file \'$filename\': $!");
+
+	my $line;
+	my $lineno = 0;
+	my $state  = 0;
+	my @glyphs;
+	my $i        = 0;
+	my $j;
+	my $glyphnum = 0;
+	my ($var, $val);
+	my (@offset, @width);
+	# Parser states:
+	# 0 = outside of glyph
+	# 1 = inside glyph lines
+  LINE: while($line = <$infile>) {
+		$lineno++;
+		if ($line =~ /^\s*\/\//) {
+			debug(2,"Line $lineno: Comment line");
+			# Empty, blank, or comment-only line: move along
+			next LINE;
+		} elsif ($line =~ /^\s*$/) {
+			# Empty or blank line: move along
+			if ($state == 1) {
+				debug(1, "Line $lineno: Found empty or blank line so end of glyphs $glyphnum - " . ($glyphnum + $j - 1));
+				print_glyph_if_debug(3,$i,$j,\@glyphs);
+				glyphs_to_pixels($font,$glyphnum,$i,$j,\@glyphs);
+				$glyphnum += $j;
+				$state = 0;
+				$i = 0;
+			} else {
+				debug(2,"Line $lineno: Empty or blank line");
+			}
+			next LINE;
+		} elsif ($line =~ /(\w+)\s*=\s*(\d+)/) {
+			if ($state == 0) {
+				# variable assignment
+				$var = $1;
+				$val = $2;
+				debug(1, "Line $lineno: Variable assignment: $var = $val");
+				if (defined($font->{$var}) && $font->{$var} != 0) {
+					warning("Redefining already defined variable: $var (was $font->{$var}, setting to $val)");
+				}
+				$font->{$var} = $val;
+			} else {
+				error(0,"Variable assignments can only happen outside glyphs");
+			}
+			next LINE;
+		} elsif ($line =~ /\s*[${one_chars}${zero_chars}]+/) {
+			# Glyph line found
+			if ($state == 0) {
+				debug(1, "Line $lineno: Found row $i of glyphs, starting glyph is $glyphnum");
+			} elsif ($state == 1) {
+				debug(2, "Line $lineno: Found row $i of glyph $glyphnum");
+			}
+			$state = 1;
+			my $scan;
+			$j = 0;
+			foreach $scan (split(/\s+/, $line)) {
+				if ($scan =~ /^$/) {
+					next;
+				}
+				$glyphs[$i][$j] = xlate($scan);
+				debug(3,"scan $j = '$glyphs[$i][$j]'");
+				$j++;
+			}
+			$i++;
+			next LINE;
+		} else {
+			# Didn't match anything I expected.
+			debug(0,"Line $lineno: Don't know what to do with this: $line");
+			next LINE;
+		}
+  } # while($line)
+	# File ends directly from last glyph; generate them here
+	if ($state == 1) {
+		debug(1, "Line $lineno: Found empty or blank line so end of glyphs $glyphnum - " . ($glyphnum + $j - 1));
+		print_glyph_if_debug(3,$i,$j,\@glyphs);
+		glyphs_to_pixels($font,$glyphnum,$i,$j,\@glyphs);
+		$glyphnum += $j;
+		$state = 0;
+		$i = 0;
+	}
+
+	close($infile);
+	return $font;
+}
+
+sub write_header {
+	my $fh = shift;
+	my $font = shift;
+	printf($fh "/*
+ * WARNING: Auto-generated file.
+ * File generated by fontcompile.
+ * This font can be freely used without any restriction (it is placed in the public domain).
+ * %dx%d Font ASCII %d - %d implemented.
+ * Note each uint8_t represents a vertical bit pattern with bit 0 the topmost
+ * and bit 7 the bottommost bit.
+ */
+
+#include \"fonts.h\"\n\n",$font->{'y'},$font->{'x'},$font->{'first'}, $font->{'last'});
+	return;
+}
+
+sub write_glyph_arr {
+	my $fh = shift;
+	my $font = shift;
+	my $indent = ' ' x $indent_sz;
+	my ($g, $x, $y);
+	my ($ng, $nx, $ny);
+	$ng = $font->{'last'}-$font->{'first'}+1;
+	$nx = $font->{'x'};
+	$ny = ($font->{'y'}+7)>>3;
+	printf($fh "static const uint8_t glyphs\[\] = \{\n");
+	for($g=0;$g<$ng;$g++) {
+		if (($g % 16)==0) {
+			my $f = $font->{'first'}+$g;
+			my $l = $font->{'last'};
+			$l = ($l>($f+15)) ? $f+15 : $l;
+			printf($fh "%s/* %3d - %3d */\n",$indent,$f,$l);
+		}
+		for($y=0;$y<$ny;$y++) {
+			printf($fh $indent);
+			for($x=0;$x<$nx;$x++) {
+				printf($fh "0x%02X,%s", $font->{'glyphs'}[$g][$x][$y],($x!=($nx-1))?' ':'');
+			}
+			if(0==$y) {
+				my $c = $g+$font->{'first'};
+				my $str;
+				if($c>31 && $c<127) { # Don't try to print unprintable ASCII chars
+					$str = sprintf("'%c'",$c);
+				} else {
+					$str = sprintf("%d:",$c);
+				}
+				printf($fh " /* %s */",$str);
+			} elsif($y==($ny-1)) {
+				printf($fh "\n");
+			}
+			printf($fh "\n");
+		}
+	}
+	printf($fh "};\n\n");
+	return;
+}
+
+sub write_offset_arr {
+	my $fh = shift;
+	my $font = shift;
+	my $indent = " " x $indent_sz;
+	my ($g, $x, $y);
+	my ($ng, $nx, $ny);
+	$ng = $font->{'last'}-$font->{'first'}+1;
+	$nx = $font->{'x'};
+	$ny = ($font->{'y'}+7)>>3;
+	printf($fh "static const uint8_t offset\[\] = \{");
+	for($g=0;$g<$ng;$g++) {
+		if (($g % 16)==0) {
+			my $f = $font->{'first'}+$g;
+			my $l = $font->{'last'};
+			$l = ($l>($f+15)) ? $f+15 : $l;
+			printf($fh "\n%s/* %3d - %3d */\n%s",$indent,$f,$l,$indent);
+		}
+#		if(($g % 16) == 0) {
+#			printf($fh "\n" . $indent);
+#		}
+		printf($fh "%3d,", $font->{'offset'}[$g]);
+	}
+	printf($fh "\n};\n\n");
+	return;
+}
+
+sub write_width_arr {
+	my $fh = shift;
+	my $font = shift;
+	my $indent = " " x $indent_sz;
+	my ($g, $x, $y);
+	my ($ng, $nx, $ny);
+	$ng = $font->{'last'}-$font->{'first'}+1;
+	$nx = $font->{'x'};
+	$ny = ($font->{'y'}+7)>>3;
+	printf($fh "static const uint8_t width\[\] = \{");
+	for($g=0;$g<$ng;$g++) {
+		if (($g % 16)==0) {
+			my $f = $font->{'first'}+$g;
+			my $l = $font->{'last'};
+			$l = ($l>($f+15)) ? $f+15 : $l;
+			printf($fh "\n%s/* %3d - %3d */\n%s",$indent,$f,$l,$indent);
+		}
+#		if(($g % 32) == 16) {
+#			printf($fh "\n" . $indent);
+#		}
+		printf($fh "%3d,", $font->{'width'}[$g]);
+	}
+	printf($fh "\n};\n\n");
+	return;
+}
+
+sub write_arrays {
+	my $fh = shift;
+	my $font = shift;
+	write_glyph_arr($fh,$font);
+	write_offset_arr($fh,$font);
+	write_width_arr($fh,$font);
+}
+
+sub write_font_structs {
+	my $fh = shift;
+	my $font = shift;
+	my $sp = ' ' x $indent_sz;
+	# Fixed
+	printf($fh "const font_t fixed_%dx%d = \{\n", $font->{'y'},$font->{'x'});
+	printf($fh $sp . ".name   = \"fixed%dx%d\",\n", $font->{'y'},$font->{'x'});
+	printf($fh $sp . ".ftype  = FIXED,\n");
+	printf($fh $sp . ".x      = %d,\n", $font->{'x'});
+	printf($fh $sp . ".y      = %d,\n", $font->{'y'});
+	printf($fh $sp . ".hspace = %d,\n", $font->{'hspace'});
+	printf($fh $sp . ".vspace = %d,\n", $font->{'vspace'});
+	printf($fh $sp . ".first  = %d,\n", $font->{'first'});
+	printf($fh $sp . ".last   = %d,\n", $font->{'last'});
+	printf($fh $sp . ".offset = NULL,\n");
+	printf($fh $sp . ".width  = NULL,\n");
+	printf($fh $sp . ".glyphs = (uint8_t *) &glyphs\n};\n\n");
+	# Proportional
+	printf($fh "const font_t font_%dx%d = \{\n", $font->{'y'},$font->{'x'});
+	printf($fh $sp . ".name   = \"font%dx%d\",\n", $font->{'y'},$font->{'x'});
+	printf($fh $sp . ".ftype  = VARIABLE,\n");
+	printf($fh $sp . ".x      = %d,\n", $font->{'x'});
+	printf($fh $sp . ".y      = %d,\n", $font->{'y'});
+	printf($fh $sp . ".hspace = %d,\n", $font->{'hspace'});
+	printf($fh $sp . ".vspace = %d,\n", $font->{'vspace'});
+	printf($fh $sp . ".first  = %d,\n", $font->{'first'});
+	printf($fh $sp . ".last   = %d,\n", $font->{'last'});
+	printf($fh $sp . ".offset = (uint8_t *) &offset,\n");
+	printf($fh $sp . ".width  = (uint8_t *) &width,\n");
+	printf($fh $sp . ".glyphs = (uint8_t *) &glyphs\n};\n\n");
+}
+
+sub write_footer {
+	my $fh = shift;
+	my $font = shift;
+	printf($fh "/* " . ("*" x 70) . "\n" .
+				 " * End of file.\n" .
+				 " " . ('*' x 70) . " */\n");
+}
+
+sub write_outfile {
+	my $dry = shift;
+	my $filename = shift;
+	my $font = shift;
+	if ($dry == 1) {
+		note("Dry run, not outputting file.");
+		return;
+	}
+	my $tst;
+	my $fh;
+	if (defined($filename)) {
+		$tst = open($fh, '>', $filename); # or die("Cannot open output file \'$filename\': $!");
+		$fh = *STDOUT unless $tst;
+	} else {
+		$fh = *STDOUT;
+	}
+	write_header($fh,$font);
+	write_arrays($fh,$font);
+	write_font_structs($fh,$font);
+	write_footer($fh,$font);
+	close($fh);
+	return;
+}
+
+####################### MAIN #######################
+
+Getopt::Long::config("no_auto_abbrev", "no_ignore_case", "auto_version", "auto_help");
+GetOptions("help|h"      => \$help,
+           "man"         => \$manual,
+           "verbose|v+"  => \$verbose_lvl,
+					 "version|V"   => \$version,
+           "dir|d=s"     => \$direction,
+           "input|i=s"   => \$infile,
+					 "x=i"         => \$x_sz,
+					 "y=i"         => \$y_sz,
+					 "dry-run|n"   => \$dry_run,
+           "output|o=s"  => \$outfile) or pod2usage(2);
+
+print_help if $help;
+
+pod2usage(-exitstatus => 0, -verbose => 2) if $manual;
+
+# Open file(s)
+
+if(scalar @ARGV) {
+	$infile = $ARGV[0];
+	if(defined($ARGV[1])) {
+		$outfile = $ARGV[1];
+	}
+}
+
+if($verbose_lvl>0) {
+	debug(0,"Verbosity level: $verbose_lvl");
+}
+
+my $fontref;
+
+# Read file line by line
+#   find/process variables (.name, .first, .last, .x, .y, .hspace, .vspace)
+#    - .ftype, .offset, .width and .glyphs are auto-filled
+#    - .x and .y can be computed from glyph bitmaps
+#   detect glyph start
+$fontref = read_fontfile($infile);
+
+# write output file, nicely formatted
+write_outfile($dry_run,$outfile,$fontref);
+
+#   
+
+exit(0);
+
+############## PLAIN OLD DOCUMENTATION ##############
+
+__END__
+
+=head1 NAME
+
+fontcompile - compile a font bitmap file to a C structure
+
+=head1 SYNOPSIS
+
+fontcompile [options] input.font output.c
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-h> | B<--help>
+
+Print a brief help message and exit.
+
+=item B<--man> | B<--manual>
+
+Print this manual page and exit.
+
+=item B<-V> | B<--version>
+
+Print version information and exit.
+
+=item B<-v> | B<--verbose>
+
+Print runtime information to STDERR. Adding more B<-v> will increase the verbosity level.
+Can be lowered by using the B<-q> flag. Final verbosity level is calculated as B<#v-#q>
+
+=item B<-q> | B<--quiet>
+
+Opposite of B<--verbose>, see above.
+
+=item B<-d> | B<--dir> = <direction>
+
+Direction of glyph data in output ('v' for vertical, 'h' for
+horizontal). See B<Glyph data> below for detailed usage.
+
+=item B<-x> | B<--x> = <num>
+
+Number of pixels in the horizontal direction. Usually auto-detected
+from the glyph data.
+
+=item B<-y> | B<--y> = <num>
+
+Number of pixels in the vertical direction. Usuyally auto-detected
+from the glyph data.
+
+=item B<-n> | B<--dry-run>
+
+Make a dry-run on the input data. Read input file, report
+warnings/errors, but don't generate output (and don't overwrite the
+output file).
+
+=back
+
+=head1 DESCRIPTION
+
+B<fontcompile> takes an input file containing a number of variable
+settings and a number of glyph ascii-images (see below) and produces
+an C source-code file with data structures that represent the font.
+
+=head1 GLYPH DATA
+
+Each font character is described with a glyph. A glyph is a monochrome
+pixel-map, or bitmap, if you like. Each glyph is described using a
+rectangular set of ASCII characters, which shows the character in a
+reasonable human-readable form.  Glyphs are separated from each other
+on the same lines using whitespace, and using blank lines to indicate
+end of one (set of) glyphs and the start of the next glyph(s).
+
+Horizontal: each uint8_t in the output data represents a horizontal
+slice of glyph pixels. The leftmost pixel is represented as the most
+significant bit in the first uint8_t. The last uint8_t of each
+horizontal 'slice' may contain unused bits.
+
+Vertical: each uint8_t in the output date represents a vertical slice
+of glyph pixels. The bottommost pixel is represented as the most
+significant bit of the last uint8_t.
+
+=head2 PIXEL/BITMAP CHARACTERS
+
+The characters ".,-_" represent an 'off' pixel.
+
+The characters "#*X¤" represent an 'on' pixel.
+
+=head2 Glyph bitmap example
+
+The following show two 8x8 pixel glyphs side by side, representing '@' and 'B':
+
+=over 4
+
+  ........ ........
+  ..###... .####...
+  .#...#.. .#...#..
+  .#..##.. .#...#..
+  .#.#.#.. .#####..
+  .#.##... .#...#..
+  .#...... .#...#..
+  ..####.. .####...
+
+=back
+
+Each glyph will be compiled into 8 uint8_t values.
+
+For the horizontal (left-to-right) direction, the data for '@' would
+be: 0x00, 0x38, 0x44, 0x4C, 0x54, 0x58, 0x40, 0x3C.
+
+For the vertical (bottom-to-top) direction, the data for '@' would be:
+0x00, 0x7C, 0x82, 0xB2, 0xAA, 0x9C, 0x00, 0x00.
+
+=head1 DATA STRUCTURES
+
+The output file uses two types that must be defined in the include
+file "fonts.h": enum ftypes and the struct font_t.
+
+=over 4
+
+  enum ftypes {
+    FIXED = 0,
+    VARIABLE = 1
+  };
+  
+  typedef struct font {
+    char *name;
+    enum ftypes ftype;
+    int  x, y;
+    int hspace, vspace;
+    int first, last;
+    uint8_t *offset;
+    uint8_t *width;
+    uint8_t *glyphs;
+  } font_t;
+
+=back
+
+=head1 AUTHOR
+
+Kai Harrekilde-Petersen, <khp@harrekilde.dk>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2017, Kai Harrekilde-Petersen. All rights reserved.
+
+=cut
+
+############################################################################
+#
+# End of file
+#
+############################################################################
