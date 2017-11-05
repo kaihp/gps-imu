@@ -54,6 +54,12 @@ extern const font_t fixed_7x5;
 extern const font_t font_7px;
 extern const font_t fixed_8x8;
 extern const font_t font_8px;
+extern const font_t fixed_9x7;
+extern const font_t font_9px;
+extern const font_t fixed_12x9;
+extern const font_t font_12px;
+extern const font_t fixed_16x10;
+extern const font_t font_16px;
 extern const font_t fixed_21x14;
 extern const font_t font_21px;
 

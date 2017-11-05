@@ -156,7 +156,7 @@ sub	glyphs_to_pixels {
 			my $cnt = 7;
 			my $rowidx = (($rows+7)>>3)-1;
 			for($r=$rows-1;$r>=0;$r--) { # foreach row in col in glyph
-				$u8 |= (('1'==substr($inref->[$r][$g],$c,1)) ? 1 : 0) << $cnt--;
+				$u8 |= (('1' eq substr($inref->[$r][$g],$c,1)) ? 1 : 0) << $cnt--;
 				if($cnt<0 || $r==0) {
 					debug(5,sprintf("font->{'glyphs'}[%d][%d][%d] = %02X", $glyph0+$g, $c, $rowidx,$u8));
 					$font->{'glyphs'}[$glyph0+$g][$c][$rowidx] = $u8;

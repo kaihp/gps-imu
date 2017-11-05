@@ -515,13 +515,13 @@ int main (int argc, char **argv)
   /* Font/glyph printing tests with all fonts and all implemented
    * characters
    */
-  const font_t *tests1[] = {&fixed_7x5, &fixed_8x8, &fixed_21x14, &font_7px, &font_8px, &font_21px};
-  for(i=0;i<sizeof(tests1) / sizeof(font_t *);i++) {
+  const font_t *tests4[] = {&fixed_7x5, &fixed_8x8, &fixed_9x7, &fixed_12x9, &fixed_16x10, &fixed_21x14, &font_7px, &font_8px, &font_9px, &font_12px, &font_16px, &font_21px};
+  for(i=0;i<sizeof(tests4) / sizeof(font_t *);i++) {
     char str[260];
     int len, idx, tmp;
     int ch_x;
-    ssd_set_font(tests1[i]);
-    printf("Setting font %s\n",tests1[i]->name);
+    ssd_set_font(tests4[i]);
+    printf("Setting font %s\n",tests4[i]->name);
     x=0;
     y=0;
     len = ssd_font->last-ssd_font->first+1;
