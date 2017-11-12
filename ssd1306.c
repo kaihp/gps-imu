@@ -466,6 +466,13 @@ void ssd130x_scroll_h(int fd, int dir)
  
 int main (int argc, char **argv)
 {
+  int height = 64;
+  if(argc>1) {
+    int tmp = atoi(argv[1]);
+    if((tmp==64) || (tmp==32)) {
+      height=tmp;
+    }
+  }
   int i,j;
   int x,y;
   int disp = i2c_init_dev(RA_SSD1306);
@@ -473,8 +480,9 @@ int main (int argc, char **argv)
     puts("Failed to setup OLED display\n");
     exit(-1);
   }
-  printf("Initializing 128 x %2d display\n",(argc>1)?64:32);
-  ssd130x_init(disp,128,(argc>1)?64:32);
+  
+  printf("Initializing 128 x %2d display\n",height);
+  ssd130x_init(disp,128,height);
   ssd_disp_update(disp);
 
 #if 0
