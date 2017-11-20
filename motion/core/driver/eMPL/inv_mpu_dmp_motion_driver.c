@@ -71,6 +71,21 @@
 #define log_i       MPL_LOGI
 #define log_e       MPL_LOGE
 
+#elif defined EMPL_TARGET_RPI3
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+#include <linux/kernel.h>
+
+#define log_i(format, args...) fprintf(stderr,"<I>" format, ## args)
+#define log_e(format, args...) fprintf(stderr,"<E>" format, ## args)
+
+extern void get_ms(unsigned long *count);
+
+/* define the __no_operation to be a memory barrier function */
+#define __no_operation() __asm__ __volatile__ ("" : : : "memory")
+
+  
 #else
 #error  Gyro driver is missing the system layer implementations.
 #endif

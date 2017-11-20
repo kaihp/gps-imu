@@ -3,6 +3,11 @@
     Copyright (C) 2011-2012 InvenSense Corporation, All Rights Reserved.
     See included License.txt for License information.
  $
+ *
+ * Ported to Raspberry Pi 3 by Kai Harrekilde-Petersen, 2017.
+ * Based on "GY-91" 10-DOF board (MPU9250/BMNP280) off AliExpress/eBay.
+ * OS: Raspbian "Stretch" (Release date 2017/09/07)
+ * https://www.raspberrypi.org/downloads/raspbian/
  */
 /**
  *  @addtogroup  DRIVERS Sensor Driver Layer
@@ -21,6 +26,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <math.h>
 #include "inv_mpu.h"
 
@@ -36,85 +42,231 @@
  * fabsf(float x)
  * min(int a, int b)
  */
-#if defined EMPL_TARGET_STM32F4
-#include "i2c.h"   
-#include "main.h"
-#include "log.h"
-#include "board-st_discovery.h"
-   
-#define i2c_write   Sensors_I2C_WriteRegister
-#define i2c_read    Sensors_I2C_ReadRegister 
-#define delay_ms    mdelay
-#define get_ms      get_tick_count
-#define log_i       MPL_LOGI
-#define log_e       MPL_LOGE
-#define min(a,b) ((a<b)?a:b)
-   
-#elif defined MOTION_DRIVER_TARGET_MSP430
-#include "msp430.h"
-#include "msp430_i2c.h"
-#include "msp430_clock.h"
-#include "msp430_interrupt.h"
-#define i2c_write   msp430_i2c_write
-#define i2c_read    msp430_i2c_read
-#define delay_ms    msp430_delay_ms
-#define get_ms      msp430_get_clock_ms
-static inline int reg_int_cb(struct int_param_s *int_param)
+#if defined EMPL_TARGET_RPI3
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+
+int mpu; /* FD for i2c functions */
+
+int i2c_init_dev(int devId)
 {
-    return msp430_reg_int_cb(int_param->cb, int_param->pin, int_param->lp_exit,
-        int_param->active_low);
+  int fd;
+  const char *dev = "/dev/i2c-1";
+  fd = open(dev, O_RDWR);
+  if (fd<0) {
+    puts("Error: couldn't open I2C device. Did you forget sudo?");
+    return fd;
+  }
+  if(ioctl(fd, I2C_SLAVE, devId) < 0) {
+    printf("Unable to select I2C device 0x%02x\n",devId);
+  }
+  return fd;
 }
-#define log_i(...)     do {} while (0)
-#define log_e(...)     do {} while (0)
-/* labs is already defined by TI's toolchain. */
-/* fabs is for doubles. fabsf is for floats. */
-#define fabs        fabsf
-#define min(a,b) ((a<b)?a:b)
-#elif defined EMPL_TARGET_MSP430
-#include "msp430.h"
-#include "msp430_i2c.h"
-#include "msp430_clock.h"
-#include "msp430_interrupt.h"
-#include "log.h"
-#define i2c_write   msp430_i2c_write
-#define i2c_read    msp430_i2c_read
-#define delay_ms    msp430_delay_ms
-#define get_ms      msp430_get_clock_ms
-static inline int reg_int_cb(struct int_param_s *int_param)
+
+/* I2C definitions */
+
+#define I2C_SLAVE 0x0703
+#define I2C_SMBUS 0x0720 /* SMBus-level access */
+
+#define I2C_SMBUS_READ  1
+#define I2C_SMBUS_WRITE 0
+
+/* SMBus transaction types */
+
+#define I2C_SMBUS_QUICK            0
+#define I2C_SMBUS_BYTE             1
+#define I2C_SMBUS_BYTE_DATA        2
+#define I2C_SMBUS_WORD_DATA        3
+#define I2C_SMBUS_PROC_CALL        4
+#define I2C_SMBUS_BLOCK_DATA       5
+#define I2C_SMBUS_I2C_BLOCK_BROKEN 6
+#define I2C_SMBUS_BLOCK_PROC_CALL  7 /* SMBus 2.0 */
+#define I2C_SMBUS_I2C_BLOCK_DATA   8
+
+/* SMBus messages */
+
+#define I2C_SMBUS_BLOCK_MAX 32 /* As specified in SMBus standard */
+#define I2C_SMBUS_I2C_BLOCK_MAX 32 /* Not specified but we use same structure */
+
+union i2c_smbus_data {
+  uint8_t  byte;
+  uint16_t word;
+  uint8_t  blk[I2C_SMBUS_BLOCK_MAX+2];
+};
+
+static inline int i2c_smbus_access(int fd, char rw, uint8_t cmd, int size, union i2c_smbus_data *data)
 {
-    return msp430_reg_int_cb(int_param->cb, int_param->pin, int_param->lp_exit,
-        int_param->active_low);
+  struct i2c_smbus_ioctl_data args;
+
+  args.read_write = rw;
+  args.command    = cmd;
+  args.size       = size;
+  args.data       = data;
+  return ioctl(fd, I2C_SMBUS, &args) ;
 }
-#define log_i       MPL_LOGI
-#define log_e       MPL_LOGE
-/* labs is already defined by TI's toolchain. */
-/* fabs is for doubles. fabsf is for floats. */
-#define fabs        fabsf
-#define min(a,b) ((a<b)?a:b)
-#elif defined EMPL_TARGET_UC3L0
-/* Instead of using the standard TWI driver from the ASF library, we're using
- * a TWI driver that follows the slave address + register address convention.
- */
-#include "twi.h"
-#include "delay.h"
-#include "sysclk.h"
-#include "log.h"
-#include "sensors_xplained.h"
-#include "uc3l0_clock.h"
-#define i2c_write(a, b, c, d)   twi_write(a, b, d, c)
-#define i2c_read(a, b, c, d)    twi_read(a, b, d, c)
-/* delay_ms is a function already defined in ASF. */
-#define get_ms  uc3l0_get_clock_ms
-static inline int reg_int_cb(struct int_param_s *int_param)
+
+
+int i2c_rd8(int fd, int addr)
 {
-    sensor_board_irq_connect(int_param->pin, int_param->cb, int_param->arg);
+  union i2c_smbus_data buf;
+  if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_BYTE_DATA, &buf)) {
+    return buf.byte;
+  }
+  return -1;
+}
+
+int i2c_rd16(int fd, int addr)
+{
+  union i2c_smbus_data buf;
+  if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_WORD_DATA, &buf)) {
+    return buf.word;
+  }
+  return -1;
+}
+
+#define MAXBLK 32
+int i2c_rd_blk(int fd, int addr, int length, uint8_t *data)
+{
+  uint8_t buf[2+MAXBLK];
+  int full, partial;
+  int nbytes=0;
+  /* Chop xfer into blocks of MAXBLK bytes */
+  full = length/MAXBLK;
+  partial = length & (MAXBLK-1);
+  while(full--) {
+    buf[0] = MAXBLK;
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      memcpy(&data[nbytes],&buf[1],MAXBLK); /* dst,src,size_t */
+			nbytes+=MAXBLK;
+    } else {
+      return -nbytes;
+    }
+  }
+  if(partial!=0) {
+    buf[0] = partial;
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_READ, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      memcpy(&data[nbytes],&buf[1],partial); /* dst,src,size_t */
+      nbytes+=partial;
+    } else {
+      return -nbytes;
+    }
+  }
+  return nbytes;
+}
+
+int i2c_read(unsigned char slave_addr, unsigned char reg_addr, unsigned char length, unsigned char *data)
+{
+  uint8_t tmp8;
+  uint16_t tmp16;
+	switch(length) {
+	case 1:
+		tmp8 = i2c_rd8(mpu, reg_addr);
+		*data=tmp8;
+		if(tmp8==-1) return -1;
+		break;
+	case 2:
+		tmp16 = i2c_rd16(mpu, reg_addr);
+		data[0]=(uint8_t) (tmp16 & 0xFF);
+		data[1]=(uint8_t) (tmp16 >> 8);
+		if(tmp16==-1) return -1;
+		break;
+	default:
+		return i2c_rd_blk(mpu, reg_addr, length, data);
+		break;
+	}
+	return 0;
+}
+
+int i2c_wr8(int fd, int addr, uint8_t data)
+{
+  union i2c_smbus_data buf = {.byte = data};
+  if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_BYTE_DATA, &buf)) {
     return 0;
+  }
+  return -1;
 }
-#define log_i       MPL_LOGI
-#define log_e       MPL_LOGE
-/* UC3 is a 32-bit processor, so abs and labs are equivalent. */
-#define labs        abs
-#define fabs(x)     (((x)>0)?(x):-(x))
+
+int i2c_wr16(int fd, int addr, uint16_t data)
+{
+  union i2c_smbus_data buf = {.word = data};
+  if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_BYTE_DATA, &buf)) {
+    return 0;
+  }
+  return -1;
+}
+
+int i2c_wr_blk(int fd, int addr, int length, const uint8_t *data)
+{
+  uint8_t buf[2+MAXBLK];
+  int full, partial;
+  int nbytes=0;
+  /* Chop xfer into blocks of MAXBLK bytes */
+  full = length/MAXBLK;
+  partial = length & (MAXBLK-1);
+  while(full--) {
+    buf[0] = MAXBLK;
+    memcpy(&buf[1],&data[nbytes],MAXBLK); /* dst,src,size_t */
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      nbytes+=MAXBLK;
+    } else {
+      return -nbytes;
+    }
+  }
+  if(partial!=0) {
+    buf[0] = partial;
+    memcpy(&buf[1],&data[nbytes],partial); /* dst,src,size_t */
+    if(0==i2c_smbus_access(fd, I2C_SMBUS_WRITE, addr, I2C_SMBUS_I2C_BLOCK_DATA, (union i2c_smbus_data *) buf)) {
+      nbytes+=partial;
+    } else {
+      return -nbytes;
+    }
+  }
+  return nbytes;
+}
+
+int i2c_write(unsigned char slave_addr, unsigned char reg_addr, unsigned char length, unsigned char const *data)
+{
+	switch(length) {
+	case 1:
+		return i2c_wr8(mpu, reg_addr, data[0]);
+		break;
+	case 2:
+		return i2c_wr16(mpu, reg_addr, (data[1])<< 8 | (data[0]));
+		break;
+	default:
+		if(-1==i2c_wr_blk(mpu, reg_addr, length, data)) return -1;
+		break;
+	}
+	return 0;
+}
+
+int delay_ms(unsigned long num_ms)
+{
+	return usleep(num_ms * 1000);
+}
+
+void get_ms(unsigned long *count)
+{
+  *count = 0;
+  return;
+}
+
+/*
+ * Defined in standard libs:
+ * labs(x)
+ * fabsf(float x)
+ */
+
+void reg_int_cb (struct int_param_s *int_param)
+{
+}
+
+#define log_i(format, args...) fprintf(stderr,"<I>" format, ## args)
+#define log_e(format, args...) fprintf(stderr,"<E>" format, ## args)
+
+#define min(a,b) (((a)<(b))?(a):(b))
+
 #else
 #error  Gyro driver is missing the system layer implementations.
 #endif
