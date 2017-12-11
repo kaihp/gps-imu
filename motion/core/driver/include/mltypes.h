@@ -105,7 +105,7 @@ typedef unsigned long inv_time_t;
 typedef unsigned long long inv_time_t;
 #endif
 
-#if defined EMPL || (!defined __GNUC__ && !defined __KERNEL__)
+#if defined EMPL || (!defined __GNUC__ && !defined __KERNEL__) || defined EMPL_TARGET_RPI3
 typedef int8_t   __s8;
 typedef int16_t  __s16;
 typedef int32_t  __s32;

@@ -2,7 +2,7 @@
 OPTIONS = -mthumb -mcpu=cortex-m4
 DEFINES = -DEMPL -DEMPL_TARGET_RPI3 -DMPU9250
 
-DIRS = driver eMPL-hal mllite
+DIRS = bsp core user
 
 .PHONY: default all compile clean help
 
@@ -18,6 +18,6 @@ compile:
 	for dir in $(DIRS); do $(MAKE) -C $$dir compile; done
 
 $(DIRS):
-	$(MAKE) -C $@ compile
+	OPTIONS="$(OPTIONS)" $(MAKE) -C $@ compile
 
 all: compile

@@ -80,7 +80,8 @@
 #define log_i(format, args...) fprintf(stderr,"<I>" format, ## args)
 #define log_e(format, args...) fprintf(stderr,"<E>" format, ## args)
 
-extern void get_ms(unsigned long *count);
+#define get_ms get_tick_count
+extern int get_tick_count(unsigned long *count);
 
 /* define the __no_operation to be a memory barrier function */
 #define __no_operation() __asm__ __volatile__ ("" : : : "memory")

@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <math.h>
 #include "inv_mpu.h"
+#include "board.h"
 
 /* The following functions must be defined for this platform:
  * i2c_write(unsigned char slave_addr, unsigned char reg_addr,
@@ -241,16 +242,9 @@ int i2c_write(unsigned char slave_addr, unsigned char reg_addr, unsigned char le
 	return 0;
 }
 
-int delay_ms(unsigned long num_ms)
-{
-	return usleep(num_ms * 1000);
-}
+#define delay_ms(x) mdelay(x)
+#define get_ms(x) get_tick_count(x)
 
-void get_ms(unsigned long *count)
-{
-  *count = 0;
-  return;
-}
 
 /*
  * Defined in standard libs:

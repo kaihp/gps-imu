@@ -1,11 +1,11 @@
 CC=gcc
 OPTIONS = -mthumb -mcpu=cortex-m4
 DEFINES = -DEMPL -DEMPL_TARGET_RPI3 -DMPU9250
-INCDIRS = -iquote../mllite -iquote../driver/include
+INCDIRS = -iquote../core/driver/eMPL -iquote../core/driver/include -iquote../core/driver/rpi  -iquote../core/eMPL-hal -iquote../core/mllite -iquote../core/mpl -iquote../bsp
 
-CPPFLAGS = $(OPTIONS) $(DEFINES) $(INCDIRS)
+CPPFLAGS= $(OPTIONS) $(DEFINES) $(INCDIRS)
 
-SRCS = eMPL_outputs.c
+SRCS = main.c
 OBJS = $(SRCS:.c=.o)
 
 .PHONY: default all compile clean help

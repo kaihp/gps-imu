@@ -4,6 +4,7 @@
     See included License.txt for License information.
  $
  */
+#include <unistd.h>
 #include "mltypes.h"
 
 #ifndef INV_STORAGE_MANAGER_H__
