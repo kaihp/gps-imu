@@ -32,6 +32,8 @@
 #define SSD_SCROLL_H_L    (0x27)
 #define SSD_SCROLL_VH_R   (0x29)
 #define SSD_SCROLL_VH_L   (0x2A)
+#define SSD_SCROLL_CONTENT_R (0x2C)
+#define SSD_SCROLL_CONTENT_L (0x2D)
 #define SSD_SCROLL_OFF    (0x2E)
 #define SSD_SCROLL_ON     (0x2F)
 #define SSD_DISP_ST_LINE  (0x40)
@@ -55,8 +57,10 @@
 #define SSD_PRECHARGE     (0xD9)
 #define SSD_COM_HW_CFG    (0xDA)
 #define SSD_VCOM_LVL      (0xDB)
+#define SSD_GPIO             (0xDC)
 #define SSD_NOP           (0xE3)
-
+#define SSD_CMD_LOCK      (0xFD)
+  
 #endif
 
 /* ************************************************************

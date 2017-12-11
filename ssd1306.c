@@ -74,7 +74,7 @@ void ssd_dat_blk(int fd, int len, uint8_t *data)
   i2c_wr_blk(fd, SSD_D, len, data);
 }
 
-void ssd130x_init(int fd, int w, int h)
+void ssd130x_init(int fd, int w, int h, uint8_t dclk, uint8_t c, uint8_t pc)
 {
   if(w!=128 || (h!=32 && h!=64)) {
     exit(-1);
@@ -106,8 +106,9 @@ void ssd130x_init(int fd, int w, int h)
  * 17) Set Display ON (0xAF)
  * 18) /Clear Screen/
  */
+  ssd_cmd2(fd, SSD_CMD_LOCK, 0x12);    /* 0xFD: LOCK = unlock (ssd1309 only, but doesn't harm ssd1306) */
   ssd_cmd1(fd, SSD_DISP_SLEEP);        /* 0xAE: DISP_ENTIRE_OFF */
-  ssd_cmd2(fd, SSD_DCLK_DIV, 0x80);    /* 0xD5: DCLK_DIV = 0x80 */
+  ssd_cmd2(fd, SSD_DCLK_DIV, dclk);    /* 0xD5: DCLK_DIV = 0x80 */
   ssd_cmd2(fd, SSD_MUX_RATIO, h-1);    /* 0xA8: MUX_RATIO = h-1 (x32=0x1F, x64=0x3F) */
   ssd_cmd2(fd, SSD_DISP_OFFSET, 0);    /* 0xD3: DISP_OFFSET = 0 */
   ssd_cmd1(fd, SSD_DISP_ST_LINE | 0);  /* 0x40: DISP_STARTLINE = 0 */
@@ -116,8 +117,8 @@ void ssd130x_init(int fd, int w, int h)
   ssd_cmd1(fd, SSD_SEG_REMAP127);      /* 0xA1: SEG_REMAP = Y */
   ssd_cmd1(fd, SSD_COM_SCAN_REV);      /* 0xC8: COM_SCAN = Reverse (7..0) */
   ssd_cmd2(fd, SSD_COM_HW_CFG, (h==32) ? 0x02 : 0x12); /* 0xDA: COM_HW PINS = 0x02 / 0x12 */
-  ssd_cmd2(fd, SSD_CONTRAST, (h==32) ? 0x8F : 0xCF);   /* 0x81: CONTRAST = 0x8F */
-  ssd_cmd2(fd, SSD_PRECHARGE, 0xF1);   /* 0xD9: PRECHARGE = 0xF1 */
+  ssd_cmd2(fd, SSD_CONTRAST, c);   /* 0x81: CONTRAST = 0x8F */
+  ssd_cmd2(fd, SSD_PRECHARGE, pc);     /* 0xD9: PRECHARGE = 0xF1 */
   ssd_cmd2(fd, SSD_VCOM_LVL, 0x40);    /* 0xDB: VCOMH LEVEL = 0x40 */
   ssd_cmd1(fd, SSD_DISP_ENT_NORM);     /* 0xA4: DISP_ENTIRE_RESUME */
   ssd_cmd1(fd, SSD_DISP_NORM);         /* 0xA6: DISP_NORMAL */
@@ -467,11 +468,28 @@ void ssd130x_scroll_h(int fd, int dir)
 int main (int argc, char **argv)
 {
   int height = 64;
+  uint8_t dclk=0x80;
+  uint8_t c=0xCF;
+  uint8_t pc=0xF1;
   if(argc>1) {
     int tmp = atoi(argv[1]);
     if((tmp==64) || (tmp==32)) {
       height=tmp;
     }
+  }
+  if(argc>2) {
+    int tmp = atoi(argv[2]);
+    printf("argv[2]=%s / 0x%02X ",argv[2], tmp);
+    dclk = (uint8_t) (0xFF & tmp);
+    printf("DCLK=0x%02X\n",dclk);
+  }
+  if(argc>3) {
+    int tmp = atoi(argv[3]);
+    c = (uint8_t) (0xFF & tmp);
+  }
+  if(argc>4) {
+    int tmp = atoi(argv[3]);
+    pc = (uint8_t) (0xFF & tmp);
   }
   int i,j;
   int x,y;
@@ -482,7 +500,7 @@ int main (int argc, char **argv)
   }
   
   printf("Initializing 128 x %2d display\n",height);
-  ssd130x_init(disp,128,height);
+  ssd130x_init(disp,128,height,dclk,c, pc);
   ssd_disp_update(disp);
 
 #if 0

@@ -23,7 +23,7 @@
 
 void ssd130x_power(int fd, int on);
 void ssd130x_reset(int fd);
-void ssd130x_init(int fd, int w, int h);
+void ssd130x_init(int fd, int w, int h, uint8_t dclk, uint8_t c, uint8_t pc);
 void ssd_disp_clear();
 void ssd_disp_awake(int fd, int awake);
 void ssd_disp_update(int fd);
