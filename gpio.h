@@ -20,6 +20,8 @@
 #define GPIO_IRQ_EDGE_RISE  2
 #define GPIO_IRQ_EDGE_BOTH  3
 
+extern int gpio_debug;
+
 extern int  gpio_init(void);
 extern int  gpio_mode(int pin, int mode, int pull);
 extern void gpio_write(int pin, int val);

@@ -40,35 +40,34 @@ int pin_out[NOUT] = {20};
 int main(int argc, char **argv)
 {
   int i;
-	if(0!=geteuid()) {
-		printf("%s: This program needs to be run as root or under sudo.\n",argv[0]);
-		exit(1);
-	}
+  if(0!=geteuid()) {
+    printf("%s: This program needs to be run as root or under sudo.\n",argv[0]);
+    exit(1);
+  }
 
   if(0>gpio_init()) {
     puts("Failed to setup GPIO interface\n");
     exit(-1);
   }
 
-	for(i=0;i<NIN;i++) {
-		gpio_mode(pin_in[i],GPIO_INPUT,GPIO_TRI);
-	}
-	for(i=0;i<NOUT;i++) {
-		gpio_mode(pin_out[i],GPIO_OUTPUT,GPIO_TRI);
-		gpio_write(pin_out[i],1);
-	}
-	gpio_write(pin_out[RSTN],0);
-	delaymsec(1);
-	gpio_write(pin_out[RSTN],1);
+  for(i=0;i<NIN;i++) {
+    gpio_mode(pin_in[i],GPIO_INPUT,GPIO_TRI);
+  }
+  for(i=0;i<NOUT;i++) {
+    gpio_mode(pin_out[i],GPIO_OUTPUT,GPIO_TRI);
+    gpio_write(pin_out[i],1);
+  }
+  gpio_write(pin_out[RSTN],0);
+  delaymsec(1);
+  gpio_write(pin_out[RSTN],1);
 
-	int vals[10];
-	i=0;
+  int vals[10];
+  i=0;
   do {
-		for(int j=0;j<NIN;j++) {
-			vals[j]=gpio_read(pin_in[j]);
-			putchar(vals[j]);
-		}
+    for(int j=0;j<NIN;j++) {
+      vals[j]=gpio_read(pin_in[j]);
+      putchar('0'+vals[j]);
+    }
     putchar('\r');
-		i++;
   } while(i<10);
 }
